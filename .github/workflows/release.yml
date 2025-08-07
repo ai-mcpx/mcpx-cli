@@ -5,6 +5,8 @@ on:
   push:
     tags:
       - v*
+  release:
+    types: [published]
 
 jobs:
   release:
@@ -36,3 +38,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.AI_MCPX_TOKEN }}
         timeout-minutes: 20
+        if: github.event_name == 'push' || (github.event_name == 'release' && !github.event.release.prerelease)
