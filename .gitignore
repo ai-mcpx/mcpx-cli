@@ -28,5 +28,9 @@ go.work.sum
 .env
 
 # Editor/IDE
-# .idea/
-# .vscode/
+.idea/
+.vscode/
+
+# Built CLI binary
+mcpx-cli
+mcpx-cli_*
