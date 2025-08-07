@@ -1,5 +1,10 @@
 # mcpx-cli
 
+[![Build Status](https://github.com/ai-mcpx/mcpx-cli/workflows/ci/badge.svg?branch=main&event=push)](https://github.com/ai-mcpx/mcpx-cli/actions?query=workflow%3Aci)
+[![Go Report Card](https://goreportcard.com/badge/github.com/ai-mcpx/mcpx-cli)](https://goreportcard.com/report/github.com/ai-mcpx/mcpx-cli)
+[![License](https://img.shields.io/github/license/ai-mcpx/mcpx-cli.svg)](https://github.com/ai-mcpx/mcpx-cli/blob/main/LICENSE)
+[![Tag](https://img.shields.io/github/tag/ai-mcpx/mcpx-cli.svg)](https://github.com/ai-mcpx/mcpx-cli/tags)
+
 A command-line interface for interacting with the mcpx (Model Context Protocol Extended) registry api. This CLI provides easy access to all the core mcpx api endpoints for managing MCP servers.
 
 ## Features
