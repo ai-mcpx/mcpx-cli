@@ -1,0 +1,62 @@
+{
+  "name": "io.github.example/test-server-node",
+  "description": "A test mcp server in node",
+  "status": "active",
+  "repository": {
+    "url": "https://github.com/example/test-server-node",
+    "source": "github",
+    "id": "example/test-server-node"
+  },
+  "version_detail": {
+    "version": "1.0.0",
+    "release_date": "2025-07-20T12:00:00Z",
+    "is_latest": true
+  },
+  "packages": [
+    {
+      "registry_name": "npm",
+      "name": "@example/test-server-node",
+      "version": "1.0.0",
+      "runtime_hint": "npx",
+      "runtime_arguments": [
+        {
+          "type": "positional",
+          "value_hint": "config_path",
+          "description": "Path to configuration file",
+          "default": "./config.json",
+          "is_required": true
+        }
+      ],
+      "environment_variables": [
+        {
+          "name": "MCP_HOST",
+          "description": "Server host address",
+          "format": "string",
+          "is_required": false,
+          "default": "0.0.0.0"
+        },
+        {
+          "name": "MCP_PORT",
+          "description": "Server port number",
+          "format": "number",
+          "is_required": false,
+          "default": "8000"
+        }
+      ]
+    }
+  ],
+  "remotes": [
+    {
+      "transport_type": "http",
+      "url": "http://localhost:8000",
+      "headers": [
+        {
+          "description": "Content type for JSON requests",
+          "format": "string",
+          "default": "application/json",
+          "value": "Content-Type: application/json"
+        }
+      ]
+    }
+  ]
+}

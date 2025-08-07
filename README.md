@@ -1,11 +1,6 @@
 # mcpx-cli
 
-[![Build Status](https://github.com/ai-mcpx/mcpx-cli/workflows/ci/badge.svg?branch=main&event=push)](https://github.com/ai-mcpx/mcpx-cli/actions?query=workflow%3Aci)
-[![Go Report Card](https://goreportcard.com/badge/github.com/ai-mcpx/mcpx-cli)](https://goreportcard.com/report/github.com/ai-mcpx/mcpx-cli)
-[![License](https://img.shields.io/github/license/ai-mcpx/mcpx-cli.svg)](https://github.com/ai-mcpx/mcpx-cli/blob/main/LICENSE)
-[![Tag](https://img.shields.io/github/tag/ai-mcpx/mcpx-cli.svg)](https://github.com/ai-mcpx/mcpx-cli/tags)
-
-A command-line interface for interacting with the mcpx (Model Context Protocol Extended) registry api. This CLI provides easy access to all the core mcpx api endpoints for managing MCP servers.
+A command-line interface for interacting with the mcpx registry api. This CLI provides easy access to all the core mcpx api endpoints for managing MCP servers.
 
 ## Features
 
@@ -13,6 +8,7 @@ A command-line interface for interacting with the mcpx (Model Context Protocol E
 - **Server Listing**: Browse available MCP servers with pagination
 - **Server Details**: Get comprehensive information about specific servers
 - **Server Publishing**: Publish new MCP servers to the registry (requires authentication)
+- **Interactive Mode**: Create server configurations interactively with Node.js and Python templates
 - **JSON Output**: All responses are formatted for easy reading
 - **Configurable Base URL**: Target different mcpx registry instances
 
@@ -150,19 +146,107 @@ Packages:
 
 #### Publish Server
 
-Publish a new MCP server to the registry:
+Publish a new MCP server to the registry. The CLI supports two modes:
+
+##### File-based Publishing
+
+Publish using an existing server configuration file:
 
 ```bash
 mcpx-cli publish <server.json> --token <auth-token>
 ```
 
-**Flags:**
-- `--token string`: Authentication token (required) - typically a GitHub token for `io.github.*` namespaced servers
-
 Example:
 ```bash
+# For GitHub namespaced servers (token required)
 mcpx-cli publish example-server.json --token ghp_your_github_token_here
+
+# For other namespaces (token optional)
+mcpx-cli publish example-server.json
 ```
+
+##### Interactive Publishing
+
+Create and publish a server configuration interactively:
+
+```bash
+mcpx-cli publish --interactive --token <auth-token>
+```
+
+Examples:
+```bash
+# For GitHub namespaced servers (token required)
+mcpx-cli publish --interactive --token ghp_your_github_token_here
+
+# For other namespaces (token optional)
+mcpx-cli publish --interactive
+```
+
+The interactive mode will:
+1. **Choose Runtime**: Select between Node.js and Python server templates
+2. **Configure Server**: Set name, description, and repository information
+3. **Set Version**: Specify package version and details
+4. **Environment Setup**: Configure environment variables and runtime settings
+5. **Save & Publish**: Optionally save the configuration file and publish to registry
+
+Example interactive session:
+```bash
+mcpx-cli publish --interactive --token ghp_your_token_here
+
+=== Interactive Server Configuration ===
+
+Select server runtime:
+  * 1) node
+    2) python
+Enter choice (1-2): 1
+
+Server name [io.github.example/test-server-node]: my-awesome-server
+Server description [A test mcp server in node]: My awesome MCP server for file operations
+
+--- Repository Information ---
+Repository URL [https://github.com/example/test-server-node]: https://github.com/myuser/awesome-server
+Repository ID (e.g., username/repo) [example/test-server-node]: myuser/awesome-server
+
+--- Version Information ---
+Version [1.0.0]: 1.1.0
+
+--- Package Information ---
+NPM package name [@example/test-server-node]: @myuser/awesome-server
+Package version [1.1.0]: 1.1.0
+
+--- Environment Variables ---
+MCP_HOST default value [0.0.0.0]:
+MCP_PORT default value [8000]: 3000
+
+--- Remote Configuration ---
+Server URL [http://localhost:8000]: http://localhost:3000
+
+Save configuration to file?
+  * 1) yes
+    2) no
+Enter choice (1-2): 1
+Filename [server-config.json]: my-server-config.json
+Configuration saved to my-server-config.json
+
+=== Server Configuration Preview ===
+Name: my-awesome-server
+Description: My awesome MCP server for file operations
+Version: 1.1.0
+Repository: https://github.com/myuser/awesome-server
+
+Proceed with publishing?
+    1) yes
+  * 2) no
+Enter choice (1-2): 1
+
+Status Code: 201
+Success: Server publication successful
+Server ID: b1234567-8901-2345-6789-012345678901
+```
+
+**Flags:**
+- `--token string`: Authentication token (required for `io.github.*` namespaced servers, optional for others)
+- `--interactive`: Enable interactive mode to create server configuration
 
 Example output:
 ```
@@ -189,62 +273,47 @@ mcpx-cli --base-url https://your-custom-registry.com servers
 
 ## Server JSON Format
 
-When publishing servers, you need to provide a JSON file describing the server. Here's the structure:
+When publishing servers, you need to provide a JSON file describing the server.
 
-```json
-{
-  "name": "io.github.example/test-server",
-  "description": "A test MCP server for demonstration purposes",
-  "status": "active",
-  "repository": {
-    "url": "https://github.com/example/test-server",
-    "source": "github",
-    "id": "example/test-server"
-  },
-  "version_detail": {
-    "version": "1.0.0",
-    "release_date": "2025-07-20T12:00:00Z",
-    "is_latest": true
-  },
-  "packages": [
-    {
-      "registry_name": "npm",
-      "name": "@example/test-server",
-      "version": "1.0.0",
-      "runtime_hint": "npx",
-      "package_arguments": [
-        {
-          "type": "positional",
-          "value_hint": "config_path",
-          "description": "Path to configuration file",
-          "default": "./config.json",
-          "is_required": true
-        }
-      ],
-      "environment_variables": [
-        {
-          "name": "API_KEY",
-          "description": "API key for external service",
-          "is_required": true,
-          "is_secret": true
-        }
-      ]
-    }
-  ]
-}
-```
+See `example-server-node.json` and `example-server-python.json` for complete examples.
 
-See `example-server.json` for a complete example.
+## Interactive Mode Templates
+
+The interactive mode uses built-in templates for different server runtimes:
+
+### Node.js Template (`example-server-node.json`)
+
+The Node.js template is pre-configured with:
+- NPM package registry settings
+- `npx` runtime hint for execution
+- Standard environment variables (`MCP_HOST`, `MCP_PORT`)
+- HTTP transport configuration
+- Positional arguments for configuration file path
+
+### Python Template (`example-server-python.json`)
+
+The Python template includes:
+- PyPI package registry settings
+- `python` runtime hint for execution
+- Python-specific environment variables (`PYTHONPATH`, `MCP_HOST`, `MCP_PORT`)
+- HTTP transport configuration
+- Option and positional arguments for script execution
+
+Both templates provide sensible defaults that can be customized during the interactive configuration process.
 
 ## Authentication
 
-Publishing servers requires authentication:
+Publishing servers may require authentication depending on the namespace:
 
-1. **GitHub Namespaced Servers** (`io.github.*`): Requires a GitHub token
+1. **GitHub Namespaced Servers** (`io.github.*`): **Requires** a GitHub token
    - Generate a token at: https://github.com/settings/tokens
    - Token needs appropriate repository permissions
+   - Use: `--token ghp_your_github_token_here`
 
-2. **Other Namespaces**: May require different authentication methods or no authentication
+2. **Other Namespaces**: Authentication is **optional**
+   - Some registries may not require authentication
+   - Others may use different authentication methods
+   - Check with your registry administrator for specific requirements
 
 ## Development
 
@@ -303,8 +372,13 @@ mcpx-cli servers --limit 5
 # 3. Get details for a specific server
 mcpx-cli server a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1
 
-# 4. Publish a new server (requires token)
-mcpx-cli publish example-server.json --token ghp_your_token_here
+# 4. Publish a new server (file-based)
+mcpx-cli publish example-server.json --token ghp_your_token_here  # GitHub projects
+mcpx-cli publish example-server.json  # Non-GitHub projects
+
+# 5. Publish a new server (interactive mode)
+mcpx-cli publish --interactive --token ghp_your_token_here  # GitHub projects
+mcpx-cli publish --interactive  # Non-GitHub projects
 ```
 
 ### Working with Different Registries

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"flag"
@@ -11,6 +12,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const (
@@ -324,10 +326,6 @@ func (c *MCPXClient) GetServer(id string) error {
 func (c *MCPXClient) PublishServer(serverFile string, token string) error {
 	fmt.Printf("=== Publish Server (File: %s) ===\n", serverFile)
 
-	if token == "" {
-		return fmt.Errorf("authentication token is required for publishing")
-	}
-
 	data, err := os.ReadFile(serverFile)
 	if err != nil {
 		return fmt.Errorf("failed to read server file: %w", err)
@@ -336,6 +334,194 @@ func (c *MCPXClient) PublishServer(serverFile string, token string) error {
 	var serverDetail ServerDetail
 	if err := json.Unmarshal(data, &serverDetail); err != nil {
 		return fmt.Errorf("invalid JSON in server file: %w", err)
+	}
+
+	if strings.HasPrefix(serverDetail.Name, "io.github.") && token == "" {
+		return fmt.Errorf("authentication token is required for GitHub namespaced servers (io.github.*)")
+	}
+
+	resp, err := c.makeRequest("POST", "/v0/publish", data, token)
+	if err != nil {
+		return fmt.Errorf("publish request failed: %w", err)
+	}
+	defer func(Body io.ReadCloser) {
+		_ = Body.Close()
+	}(resp.Body)
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response: %w", err)
+	}
+
+	fmt.Printf("Status Code: %d\n", resp.StatusCode)
+
+	if resp.StatusCode == 201 {
+		var publishResp PublishResponse
+		if err := json.Unmarshal(body, &publishResp); err != nil {
+			return fmt.Errorf("failed to parse response: %w", err)
+		}
+
+		fmt.Printf("Success: %s\n", publishResp.Message)
+		fmt.Printf("Server ID: %s\n", publishResp.ID)
+	} else {
+		fmt.Printf("Error: %s\n", string(body))
+	}
+
+	return nil
+}
+
+func promptUser(prompt string, defaultValue string) string {
+	reader := bufio.NewReader(os.Stdin)
+	if defaultValue != "" {
+		fmt.Printf("%s [%s]: ", prompt, defaultValue)
+	} else {
+		fmt.Printf("%s: ", prompt)
+	}
+
+	input, _ := reader.ReadString('\n')
+	input = strings.TrimSpace(input)
+
+	if input == "" && defaultValue != "" {
+		return defaultValue
+	}
+
+	return input
+}
+
+func promptChoice(prompt string, choices []string, defaultChoice string) string {
+	fmt.Printf("%s\n", prompt)
+	for i, choice := range choices {
+		marker := " "
+		if choice == defaultChoice {
+			marker = "*"
+		}
+		fmt.Printf("  %s %d) %s\n", marker, i+1, choice)
+	}
+
+	for {
+		input := promptUser("Enter choice (1-"+strconv.Itoa(len(choices))+")", "")
+
+		if input == "" && defaultChoice != "" {
+			return defaultChoice
+		}
+
+		choice, err := strconv.Atoi(input)
+		if err == nil && choice >= 1 && choice <= len(choices) {
+			return choices[choice-1]
+		}
+
+		fmt.Printf("Invalid choice. Please enter a number between 1 and %d.\n", len(choices))
+	}
+}
+
+func createInteractiveServer() (*ServerDetail, error) {
+	fmt.Println("=== Interactive Server Configuration ===")
+	fmt.Println()
+
+	runtime := promptChoice("Select server runtime:", []string{"node", "python"}, "node")
+
+	var templateFile string
+	if runtime == "node" {
+		templateFile = "example-server-node.json"
+	} else {
+		templateFile = "example-server-python.json"
+	}
+
+	data, err := os.ReadFile(templateFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load template %s: %w", templateFile, err)
+	}
+
+	var server ServerDetail
+	if err := json.Unmarshal(data, &server); err != nil {
+		return nil, fmt.Errorf("failed to parse template: %w", err)
+	}
+
+	// Interactive prompts
+	fmt.Println()
+	server.Name = promptUser("Server name", server.Name)
+	server.Description = promptUser("Server description", server.Description)
+
+	fmt.Println("\n--- Repository Information ---")
+	server.Repository.URL = promptUser("Repository URL", server.Repository.URL)
+	server.Repository.ID = promptUser("Repository ID (e.g., username/repo)", server.Repository.ID)
+
+	fmt.Println("\n--- Version Information ---")
+	server.VersionDetail.Version = promptUser("Version", server.VersionDetail.Version)
+
+	server.VersionDetail.ReleaseDate = time.Now().Format(time.RFC3339)
+
+	if len(server.Packages) > 0 {
+		fmt.Println("\n--- Package Information ---")
+		pkg := &server.Packages[0]
+
+		if runtime == "node" {
+			pkg.Name = promptUser("NPM package name", pkg.Name)
+		} else {
+			pkg.Name = promptUser("PyPI package name", pkg.Name)
+		}
+
+		pkg.Version = promptUser("Package version", server.VersionDetail.Version)
+
+		if len(pkg.EnvironmentVariables) > 0 {
+			fmt.Println("\n--- Environment Variables ---")
+			for i := range pkg.EnvironmentVariables {
+				env := &pkg.EnvironmentVariables[i]
+				env.Default = promptUser(fmt.Sprintf("%s default value", env.Name), env.Default)
+			}
+		}
+	}
+
+	if len(server.Remotes) > 0 {
+		fmt.Println("\n--- Remote Configuration ---")
+		remote := &server.Remotes[0]
+		remote.URL = promptUser("Server URL", remote.URL)
+	}
+
+	return &server, nil
+}
+
+func (c *MCPXClient) PublishServerInteractive(token string) error {
+	fmt.Println("=== Interactive Publish Server ===")
+
+	server, err := createInteractiveServer()
+	if err != nil {
+		return fmt.Errorf("failed to create server config: %w", err)
+	}
+
+	if strings.HasPrefix(server.Name, "io.github.") && token == "" {
+		return fmt.Errorf("authentication token is required for GitHub namespaced servers (io.github.*)")
+	}
+
+	data, err := json.MarshalIndent(server, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal server config: %w", err)
+	}
+
+	saveConfig := promptChoice("Save configuration to file?", []string{"yes", "no"}, "yes")
+	if saveConfig == "yes" {
+		filename := promptUser("Filename", "server-config.json")
+		if !strings.HasSuffix(filename, ".json") {
+			filename += ".json"
+		}
+
+		if err := os.WriteFile(filename, data, 0644); err != nil {
+			fmt.Printf("Warning: Failed to save config to %s: %v\n", filename, err)
+		} else {
+			fmt.Printf("Configuration saved to %s\n", filename)
+		}
+	}
+
+	fmt.Println("\n=== Server Configuration Preview ===")
+	fmt.Printf("Name: %s\n", server.Name)
+	fmt.Printf("Description: %s\n", server.Description)
+	fmt.Printf("Version: %s\n", server.VersionDetail.Version)
+	fmt.Printf("Repository: %s\n", server.Repository.URL)
+
+	publish := promptChoice("Proceed with publishing?", []string{"yes", "no"}, "no")
+	if publish != "yes" {
+		fmt.Println("Publishing cancelled.")
+		return nil
 	}
 
 	resp, err := c.makeRequest("POST", "/v0/publish", data, token)
@@ -383,19 +569,24 @@ func printUsage() {
 	fmt.Println("  servers                    List all servers")
 	fmt.Println("  server <id>                Get server details by ID")
 	fmt.Println("  publish <server.json>      Publish a server to the registry")
+	fmt.Println("  publish --interactive      Interactive mode to create and publish a server")
 	fmt.Println()
 	fmt.Println("Server List Flags:")
 	fmt.Println("  --cursor string      Pagination cursor")
 	fmt.Println("  --limit int          Maximum number of servers to return (default: 30)")
 	fmt.Println()
 	fmt.Println("Publish Flags:")
-	fmt.Println("  --token string       Authentication token (required)")
+	fmt.Println("  --token string       Authentication token (required for io.github.* servers)")
+	fmt.Println("  --interactive        Interactive mode to create server configuration")
 	fmt.Println()
 	fmt.Println("Examples:")
 	fmt.Println("  mcpx-cli health")
 	fmt.Println("  mcpx-cli servers --limit 10")
 	fmt.Println("  mcpx-cli server a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1")
-	fmt.Println("  mcpx-cli publish server.json --token your_github_token")
+	fmt.Println("  mcpx-cli publish server.json --token your_github_token  # GitHub projects")
+	fmt.Println("  mcpx-cli publish server.json                           # Non-GitHub projects")
+	fmt.Println("  mcpx-cli publish --interactive --token your_github_token")
+	fmt.Println("  mcpx-cli publish --interactive")
 	fmt.Println("  mcpx-cli --base-url http://prod.example.com servers")
 }
 
@@ -475,23 +666,45 @@ func main() {
 		}
 
 	case "publish":
-		if len(args) < 2 {
-			fmt.Println("Error: server file is required")
-			fmt.Println("Usage: mcpx-cli publish <server.json> --token <token>")
-			os.Exit(1)
-		}
-
 		var token string
+		var interactive bool
+
 		publishFlags := flag.NewFlagSet("publish", flag.ExitOnError)
 		publishFlags.StringVar(&token, "token", "", "Authentication token (required)")
+		publishFlags.BoolVar(&interactive, "interactive", false, "Interactive mode to create server configuration")
 
-		if err := publishFlags.Parse(args[2:]); err != nil {
-			log.Fatalf("Error parsing publish flags: %v", err)
+		flagArgs := args[1:]
+		var serverFile string
+
+		// If interactive flag is provided or no server file is given, use interactive mode
+		if len(args) == 1 || (len(args) > 1 && strings.HasPrefix(args[1], "-")) {
+			if err := publishFlags.Parse(flagArgs); err != nil {
+				log.Fatalf("Error parsing publish flags: %v", err)
+			}
+			interactive = true
+		} else {
+			serverFile = args[1]
+			if err := publishFlags.Parse(args[2:]); err != nil {
+				log.Fatalf("Error parsing publish flags: %v", err)
+			}
 		}
 
-		serverFile := args[1]
-		if err := client.PublishServer(serverFile, token); err != nil {
-			log.Fatalf("Publish server failed: %v", err)
+		if interactive {
+			if err := client.PublishServerInteractive(token); err != nil {
+				log.Fatalf("Interactive publish failed: %v", err)
+			}
+		} else {
+			if serverFile == "" {
+				fmt.Println("Error: server file is required in non-interactive mode")
+				fmt.Println("Usage: mcpx-cli publish <server.json> [--token <token>]")
+				fmt.Println("   or: mcpx-cli publish --interactive [--token <token>]")
+				fmt.Println("Note: --token is required only for GitHub namespaced servers (io.github.*)")
+				os.Exit(1)
+			}
+
+			if err := client.PublishServer(serverFile, token); err != nil {
+				log.Fatalf("Publish server failed: %v", err)
+			}
 		}
 
 	default:
