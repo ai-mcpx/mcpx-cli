@@ -19,6 +19,8 @@ const (
 	defaultBaseURL = "http://localhost:8080"
 )
 
+var version = "dev"
+
 type HealthResponse struct {
 	Status         string `json:"status"`
 	GitHubClientID string `json:"github_client_id"`
@@ -54,6 +56,11 @@ type Metadata struct {
 type ServersResponse struct {
 	Servers  []Server `json:"servers"`
 	Metadata Metadata `json:"metadata,omitempty"`
+}
+
+type DetailedServersResponse struct {
+	Servers  []ServerDetail `json:"servers"`
+	Metadata Metadata       `json:"metadata,omitempty"`
 }
 
 type Input struct {
@@ -120,6 +127,7 @@ func NewMCPXClient(baseURL string) *MCPXClient {
 	if baseURL == "" {
 		baseURL = defaultBaseURL
 	}
+
 	return &MCPXClient{
 		baseURL:    strings.TrimSuffix(baseURL, "/"),
 		httpClient: &http.Client{},
@@ -173,7 +181,6 @@ func (c *MCPXClient) Health() error {
 		if err := json.Unmarshal(body, &healthResp); err != nil {
 			return fmt.Errorf("failed to parse response: %w", err)
 		}
-
 		fmt.Printf("Status: %s\n", healthResp.Status)
 		if healthResp.GitHubClientID != "" {
 			fmt.Printf("GitHub Client ID: %s\n", healthResp.GitHubClientID)
@@ -185,16 +192,19 @@ func (c *MCPXClient) Health() error {
 	return nil
 }
 
-func (c *MCPXClient) ListServers(cursor string, limit int) error {
+func (c *MCPXClient) ListServers(cursor string, limit int, jsonOutput bool, detailed bool) error {
 	var params []string
 
-	fmt.Println("=== List Servers ===")
+	if !jsonOutput {
+		fmt.Println("=== List Servers ===")
+	}
 
 	endpoint := "/v0/servers"
 
 	if cursor != "" {
 		params = append(params, "cursor="+cursor)
 	}
+
 	if limit > 0 {
 		params = append(params, "limit="+strconv.Itoa(limit))
 	}
@@ -216,42 +226,94 @@ func (c *MCPXClient) ListServers(cursor string, limit int) error {
 		return fmt.Errorf("failed to read response: %w", err)
 	}
 
-	fmt.Printf("Status Code: %d\n", resp.StatusCode)
+	if !jsonOutput {
+		fmt.Printf("Status Code: %d\n", resp.StatusCode)
+	}
 
 	if resp.StatusCode == 200 {
 		var serversResp ServersResponse
 		if err := json.Unmarshal(body, &serversResp); err != nil {
 			return fmt.Errorf("failed to parse response: %w", err)
 		}
-
-		fmt.Printf("Total Servers: %d\n", len(serversResp.Servers))
-		if serversResp.Metadata.NextCursor != "" {
-			fmt.Printf("Next Cursor: %s\n", serversResp.Metadata.NextCursor)
-		}
-
-		for i, server := range serversResp.Servers {
-			fmt.Printf("\n--- Server %d ---\n", i+1)
-			fmt.Printf("ID: %s\n", server.ID)
-			fmt.Printf("Name: %s\n", server.Name)
-			fmt.Printf("Description: %s\n", server.Description)
-			if server.Status != "" {
-				fmt.Printf("Status: %s\n", server.Status)
+		if detailed && jsonOutput {
+			var detailedServers []ServerDetail
+			for _, server := range serversResp.Servers {
+				detailResp, err := c.makeRequest("GET", "/v0/servers/"+server.ID, nil, "")
+				if err != nil {
+					return fmt.Errorf("failed to get details for server %s: %w", server.ID, err)
+				}
+				detailBody, err := io.ReadAll(detailResp.Body)
+				_ = detailResp.Body.Close()
+				if err != nil {
+					return fmt.Errorf("failed to read detail response for server %s: %w", server.ID, err)
+				}
+				if detailResp.StatusCode == 200 {
+					var serverDetail ServerDetail
+					if err := json.Unmarshal(detailBody, &serverDetail); err != nil {
+						return fmt.Errorf("failed to parse detail response for server %s: %w", server.ID, err)
+					}
+					detailedServers = append(detailedServers, serverDetail)
+				} else {
+					serverDetail := ServerDetail{
+						Server: server,
+					}
+					detailedServers = append(detailedServers, serverDetail)
+				}
 			}
-			fmt.Printf("Repository: %s (%s)\n", server.Repository.URL, server.Repository.Source)
-			fmt.Printf("Version: %s\n", server.VersionDetail.Version)
-			if server.VersionDetail.ReleaseDate != "" {
-				fmt.Printf("Release Date: %s\n", server.VersionDetail.ReleaseDate)
+			detailedResp := DetailedServersResponse{
+				Servers:  detailedServers,
+				Metadata: serversResp.Metadata,
+			}
+			prettyJSON, err := json.MarshalIndent(detailedResp, "", "  ")
+			if err != nil {
+				return fmt.Errorf("failed to format JSON: %w", err)
+			}
+			fmt.Println(string(prettyJSON))
+		} else if jsonOutput {
+			prettyJSON, err := json.MarshalIndent(serversResp, "", "  ")
+			if err != nil {
+				return fmt.Errorf("failed to format JSON: %w", err)
+			}
+			fmt.Println(string(prettyJSON))
+		} else {
+			var serversResp ServersResponse
+			if err := json.Unmarshal(body, &serversResp); err != nil {
+				return fmt.Errorf("failed to parse response: %w", err)
+			}
+			fmt.Printf("Total Servers: %d\n", len(serversResp.Servers))
+			if serversResp.Metadata.NextCursor != "" {
+				fmt.Printf("Next Cursor: %s\n", serversResp.Metadata.NextCursor)
+			}
+			for i, server := range serversResp.Servers {
+				fmt.Printf("\n--- Server %d ---\n", i+1)
+				fmt.Printf("ID: %s\n", server.ID)
+				fmt.Printf("Name: %s\n", server.Name)
+				fmt.Printf("Description: %s\n", server.Description)
+				if server.Status != "" {
+					fmt.Printf("Status: %s\n", server.Status)
+				}
+				fmt.Printf("Repository: %s (%s)\n", server.Repository.URL, server.Repository.Source)
+				fmt.Printf("Version: %s\n", server.VersionDetail.Version)
+				if server.VersionDetail.ReleaseDate != "" {
+					fmt.Printf("Release Date: %s\n", server.VersionDetail.ReleaseDate)
+				}
 			}
 		}
 	} else {
-		fmt.Printf("Error: %s\n", string(body))
+		if jsonOutput {
+			fmt.Println(string(body))
+		} else {
+			fmt.Printf("Error: %s\n", string(body))
+		}
 	}
 
 	return nil
 }
 
-func (c *MCPXClient) GetServer(id string) error {
-	fmt.Printf("=== Get Server Details (ID: %s) ===\n", id)
+func (c *MCPXClient) GetServer(id string, jsonOutput bool) error {
+	if !jsonOutput {
+		fmt.Printf("=== Get Server Details (ID: %s) ===\n", id)
+	}
 
 	endpoint := "/v0/servers/" + id
 
@@ -268,56 +330,70 @@ func (c *MCPXClient) GetServer(id string) error {
 		return fmt.Errorf("failed to read response: %w", err)
 	}
 
-	fmt.Printf("Status Code: %d\n", resp.StatusCode)
+	if !jsonOutput {
+		fmt.Printf("Status Code: %d\n", resp.StatusCode)
+	}
 
 	if resp.StatusCode == 200 {
-		var serverDetail ServerDetail
-		if err := json.Unmarshal(body, &serverDetail); err != nil {
-			return fmt.Errorf("failed to parse response: %w", err)
-		}
-
-		fmt.Printf("ID: %s\n", serverDetail.ID)
-		fmt.Printf("Name: %s\n", serverDetail.Name)
-		fmt.Printf("Description: %s\n", serverDetail.Description)
-		if serverDetail.Status != "" {
-			fmt.Printf("Status: %s\n", serverDetail.Status)
-		}
-		fmt.Printf("Repository: %s (%s)\n", serverDetail.Repository.URL, serverDetail.Repository.Source)
-		fmt.Printf("Version: %s\n", serverDetail.VersionDetail.Version)
-		if serverDetail.VersionDetail.ReleaseDate != "" {
-			fmt.Printf("Release Date: %s\n", serverDetail.VersionDetail.ReleaseDate)
-		}
-
-		if len(serverDetail.Packages) > 0 {
-			fmt.Printf("\nPackages:\n")
-			for i, pkg := range serverDetail.Packages {
-				fmt.Printf("  Package %d:\n", i+1)
-				fmt.Printf("    Registry: %s\n", pkg.RegistryName)
-				fmt.Printf("    Name: %s\n", pkg.Name)
-				fmt.Printf("    Version: %s\n", pkg.Version)
-				if pkg.RuntimeHint != "" {
-					fmt.Printf("    Runtime Hint: %s\n", pkg.RuntimeHint)
-				}
-
-				if len(pkg.EnvironmentVariables) > 0 {
-					fmt.Printf("    Environment Variables:\n")
-					for _, env := range pkg.EnvironmentVariables {
-						fmt.Printf("      - %s: %s\n", env.Name, env.Description)
+		if jsonOutput {
+			var serverDetail ServerDetail
+			if err := json.Unmarshal(body, &serverDetail); err != nil {
+				return fmt.Errorf("failed to parse response: %w", err)
+			}
+			prettyJSON, err := json.MarshalIndent(serverDetail, "", "  ")
+			if err != nil {
+				return fmt.Errorf("failed to format JSON: %w", err)
+			}
+			fmt.Println(string(prettyJSON))
+		} else {
+			var serverDetail ServerDetail
+			if err := json.Unmarshal(body, &serverDetail); err != nil {
+				return fmt.Errorf("failed to parse response: %w", err)
+			}
+			fmt.Printf("ID: %s\n", serverDetail.ID)
+			fmt.Printf("Name: %s\n", serverDetail.Name)
+			fmt.Printf("Description: %s\n", serverDetail.Description)
+			if serverDetail.Status != "" {
+				fmt.Printf("Status: %s\n", serverDetail.Status)
+			}
+			fmt.Printf("Repository: %s (%s)\n", serverDetail.Repository.URL, serverDetail.Repository.Source)
+			fmt.Printf("Version: %s\n", serverDetail.VersionDetail.Version)
+			if serverDetail.VersionDetail.ReleaseDate != "" {
+				fmt.Printf("Release Date: %s\n", serverDetail.VersionDetail.ReleaseDate)
+			}
+			if len(serverDetail.Packages) > 0 {
+				fmt.Printf("\nPackages:\n")
+				for i, pkg := range serverDetail.Packages {
+					fmt.Printf("  Package %d:\n", i+1)
+					fmt.Printf("    Registry: %s\n", pkg.RegistryName)
+					fmt.Printf("    Name: %s\n", pkg.Name)
+					fmt.Printf("    Version: %s\n", pkg.Version)
+					if pkg.RuntimeHint != "" {
+						fmt.Printf("    Runtime Hint: %s\n", pkg.RuntimeHint)
+					}
+					if len(pkg.EnvironmentVariables) > 0 {
+						fmt.Printf("    Environment Variables:\n")
+						for _, env := range pkg.EnvironmentVariables {
+							fmt.Printf("      - %s: %s\n", env.Name, env.Description)
+						}
 					}
 				}
 			}
-		}
-
-		if len(serverDetail.Remotes) > 0 {
-			fmt.Printf("\nRemotes:\n")
-			for i, remote := range serverDetail.Remotes {
-				fmt.Printf("  Remote %d:\n", i+1)
-				fmt.Printf("    Transport: %s\n", remote.TransportType)
-				fmt.Printf("    URL: %s\n", remote.URL)
+			if len(serverDetail.Remotes) > 0 {
+				fmt.Printf("\nRemotes:\n")
+				for i, remote := range serverDetail.Remotes {
+					fmt.Printf("  Remote %d:\n", i+1)
+					fmt.Printf("    Transport: %s\n", remote.TransportType)
+					fmt.Printf("    URL: %s\n", remote.URL)
+				}
 			}
 		}
 	} else {
-		fmt.Printf("Error: %s\n", string(body))
+		if jsonOutput {
+			fmt.Println(string(body))
+		} else {
+			fmt.Printf("Error: %s\n", string(body))
+		}
 	}
 
 	return nil
@@ -360,7 +436,6 @@ func (c *MCPXClient) PublishServer(serverFile string, token string) error {
 		if err := json.Unmarshal(body, &publishResp); err != nil {
 			return fmt.Errorf("failed to parse response: %w", err)
 		}
-
 		fmt.Printf("Success: %s\n", publishResp.Message)
 		fmt.Printf("Server ID: %s\n", publishResp.ID)
 	} else {
@@ -371,13 +446,13 @@ func (c *MCPXClient) PublishServer(serverFile string, token string) error {
 }
 
 func promptUser(prompt string, defaultValue string) string {
-	reader := bufio.NewReader(os.Stdin)
 	if defaultValue != "" {
 		fmt.Printf("%s [%s]: ", prompt, defaultValue)
 	} else {
 		fmt.Printf("%s: ", prompt)
 	}
 
+	reader := bufio.NewReader(os.Stdin)
 	input, _ := reader.ReadString('\n')
 	input = strings.TrimSpace(input)
 
@@ -390,6 +465,7 @@ func promptUser(prompt string, defaultValue string) string {
 
 func promptChoice(prompt string, choices []string, defaultChoice string) string {
 	fmt.Printf("%s\n", prompt)
+
 	for i, choice := range choices {
 		marker := " "
 		if choice == defaultChoice {
@@ -400,16 +476,13 @@ func promptChoice(prompt string, choices []string, defaultChoice string) string 
 
 	for {
 		input := promptUser("Enter choice (1-"+strconv.Itoa(len(choices))+")", "")
-
 		if input == "" && defaultChoice != "" {
 			return defaultChoice
 		}
-
 		choice, err := strconv.Atoi(input)
 		if err == nil && choice >= 1 && choice <= len(choices) {
 			return choices[choice-1]
 		}
-
 		fmt.Printf("Invalid choice. Please enter a number between 1 and %d.\n", len(choices))
 	}
 }
@@ -454,15 +527,12 @@ func createInteractiveServer() (*ServerDetail, error) {
 	if len(server.Packages) > 0 {
 		fmt.Println("\n--- Package Information ---")
 		pkg := &server.Packages[0]
-
 		if runtime == "node" {
 			pkg.Name = promptUser("NPM package name", pkg.Name)
 		} else {
 			pkg.Name = promptUser("PyPI package name", pkg.Name)
 		}
-
 		pkg.Version = promptUser("Package version", server.VersionDetail.Version)
-
 		if len(pkg.EnvironmentVariables) > 0 {
 			fmt.Println("\n--- Environment Variables ---")
 			for i := range pkg.EnvironmentVariables {
@@ -504,7 +574,6 @@ func (c *MCPXClient) PublishServerInteractive(token string) error {
 		if !strings.HasSuffix(filename, ".json") {
 			filename += ".json"
 		}
-
 		if err := os.WriteFile(filename, data, 0644); err != nil {
 			fmt.Printf("Warning: Failed to save config to %s: %v\n", filename, err)
 		} else {
@@ -544,7 +613,6 @@ func (c *MCPXClient) PublishServerInteractive(token string) error {
 		if err := json.Unmarshal(body, &publishResp); err != nil {
 			return fmt.Errorf("failed to parse response: %w", err)
 		}
-
 		fmt.Printf("Success: %s\n", publishResp.Message)
 		fmt.Printf("Server ID: %s\n", publishResp.ID)
 	} else {
@@ -562,18 +630,25 @@ func printUsage() {
 	fmt.Println()
 	fmt.Println("Global Flags:")
 	fmt.Println("  --base-url=string    Base url of the mcpx api (default: http://localhost:8080)")
+	fmt.Println("  --version            Show version information")
 	fmt.Println()
 	fmt.Println("Commands:")
 	fmt.Println("  help                       Show this help message")
+	fmt.Println("  version                    Show version information")
 	fmt.Println("  health                     Check api health status")
 	fmt.Println("  servers                    List all servers")
-	fmt.Println("  server <id>                Get server details by ID")
+	fmt.Println("  server <id> [--json]       Get server details by ID")
 	fmt.Println("  publish <server.json>      Publish a server to the registry")
 	fmt.Println("  publish --interactive      Interactive mode to create and publish a server")
 	fmt.Println()
 	fmt.Println("Server List Flags:")
 	fmt.Println("  --cursor string      Pagination cursor")
 	fmt.Println("  --limit int          Maximum number of servers to return (default: 30)")
+	fmt.Println("  --json               Output servers details in JSON format")
+	fmt.Println("  --detailed           Include packages and remotes in JSON output (requires --json)")
+	fmt.Println()
+	fmt.Println("Server Detail Flags:")
+	fmt.Println("  --json               Output server details in JSON format")
 	fmt.Println()
 	fmt.Println("Publish Flags:")
 	fmt.Println("  --token string       Authentication token (required for io.github.* servers)")
@@ -582,11 +657,12 @@ func printUsage() {
 	fmt.Println("Examples:")
 	fmt.Println("  mcpx-cli health")
 	fmt.Println("  mcpx-cli servers --limit 10")
-	fmt.Println("  mcpx-cli server <id>")
-	fmt.Println("  mcpx-cli publish server.json --token your_github_token  # GitHub projects")
-	fmt.Println("  mcpx-cli publish server.json                            # Non-GitHub projects")
-	fmt.Println("  mcpx-cli publish --interactive --token your_github_token")
-	fmt.Println("  mcpx-cli publish --interactive")
+	fmt.Println("  mcpx-cli servers --json --detailed")
+	fmt.Println("  mcpx-cli server <id> [--json]")
+	fmt.Println("  mcpx-cli publish server.json --token your_github_token    # GitHub projects")
+	fmt.Println("  mcpx-cli publish server.json                              # Non-GitHub projects")
+	fmt.Println("  mcpx-cli publish --interactive --token your_github_token  # GitHub projects")
+	fmt.Println("  mcpx-cli publish --interactive                            # Non-GitHub projects")
 	fmt.Println("  mcpx-cli --base-url=http://prod.example.com servers")
 }
 
@@ -595,6 +671,10 @@ func main() {
 		arg := os.Args[1]
 		if arg == "--help" || arg == "-h" || arg == "help" {
 			printUsage()
+			os.Exit(0)
+		}
+		if arg == "--version" || arg == "version" {
+			fmt.Println(version)
 			os.Exit(0)
 		}
 	}
@@ -631,51 +711,63 @@ func main() {
 	switch command {
 	case "help", "--help", "-h":
 		printUsage()
-
 	case "health":
 		if err := client.Health(); err != nil {
 			log.Fatalf("Health check failed: %v", err)
 		}
-
 	case "servers":
 		var cursor string
 		var limit int
-
+		var jsonOutput bool
+		var detailed bool
 		serversFlags := flag.NewFlagSet("servers", flag.ExitOnError)
 		serversFlags.StringVar(&cursor, "cursor", "", "Pagination cursor")
 		serversFlags.IntVar(&limit, "limit", 30, "Maximum number of servers to return")
-
+		serversFlags.BoolVar(&jsonOutput, "json", false, "Output servers details in JSON format")
+		serversFlags.BoolVar(&detailed, "detailed", false, "Include packages and remotes in JSON output (requires --json)")
 		if err := serversFlags.Parse(args[1:]); err != nil {
 			log.Fatalf("Error parsing servers flags: %v", err)
 		}
-
-		if err := client.ListServers(cursor, limit); err != nil {
-			log.Fatalf("List servers failed: %v", err)
-		}
-
-	case "server":
-		if len(args) < 2 {
-			fmt.Println("Error: server ID is required")
-			fmt.Println("Usage: mcpx-cli server <id>")
+		if detailed && !jsonOutput {
+			fmt.Println("Error: --detailed flag requires --json flag")
 			os.Exit(1)
 		}
-
-		serverID := args[1]
-		if err := client.GetServer(serverID); err != nil {
+		if err := client.ListServers(cursor, limit, jsonOutput, detailed); err != nil {
+			log.Fatalf("List servers failed: %v", err)
+		}
+	case "server":
+		var jsonOutput bool
+		serverFlags := flag.NewFlagSet("server", flag.ExitOnError)
+		serverFlags.BoolVar(&jsonOutput, "json", false, "Output server details in JSON format")
+		var serverID string
+		var flagArgs []string
+		for i, arg := range args[1:] {
+			if strings.HasPrefix(arg, "-") {
+				flagArgs = args[i+1:]
+				break
+			} else {
+				serverID = arg
+			}
+		}
+		if serverID == "" {
+			fmt.Println("Error: server ID is required")
+			fmt.Println("Usage: mcpx-cli server <id> [--json]")
+			os.Exit(1)
+		}
+		if err := serverFlags.Parse(flagArgs); err != nil {
+			log.Fatalf("Error parsing server flags: %v", err)
+		}
+		if err := client.GetServer(serverID, jsonOutput); err != nil {
 			log.Fatalf("Get server failed: %v", err)
 		}
-
 	case "publish":
 		var token string
 		var interactive bool
-
 		publishFlags := flag.NewFlagSet("publish", flag.ExitOnError)
 		publishFlags.StringVar(&token, "token", "", "Authentication token (required)")
 		publishFlags.BoolVar(&interactive, "interactive", false, "Interactive mode to create server configuration")
-
 		flagArgs := args[1:]
 		var serverFile string
-
 		// If interactive flag is provided or no server file is given, use interactive mode
 		if len(args) == 1 || (len(args) > 1 && strings.HasPrefix(args[1], "-")) {
 			if err := publishFlags.Parse(flagArgs); err != nil {
@@ -688,7 +780,6 @@ func main() {
 				log.Fatalf("Error parsing publish flags: %v", err)
 			}
 		}
-
 		if interactive {
 			if err := client.PublishServerInteractive(token); err != nil {
 				log.Fatalf("Interactive publish failed: %v", err)
@@ -701,12 +792,10 @@ func main() {
 				fmt.Println("Note: --token is required only for GitHub namespaced servers (io.github.*)")
 				os.Exit(1)
 			}
-
 			if err := client.PublishServer(serverFile, token); err != nil {
 				log.Fatalf("Publish server failed: %v", err)
 			}
 		}
-
 	default:
 		fmt.Printf("Unknown command: %s\n\n", command)
 		printUsage()

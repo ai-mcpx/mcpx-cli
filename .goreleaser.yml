@@ -13,7 +13,7 @@ builds:
     binary: mcpx-cli
     flags:
       - -trimpath
-    ldflags: -s -w
+    ldflags: -s -w -X main.version={{.Tag}}
 
 changelog:
   sort: asc

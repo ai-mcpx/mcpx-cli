@@ -7,17 +7,20 @@ A command-line interface for interacting with the mcpx registry api. This CLI pr
 - **Health Check**: Verify api connectivity and status
 - **Server Listing**: Browse available MCP servers with pagination
 - **Server Details**: Get comprehensive information about specific servers
+- **Detailed Server Information**: Retrieve complete server data including packages and remotes
 - **Server Publishing**: Publish new MCP servers to the registry (requires authentication)
 - **Interactive Mode**: Create server configurations interactively with Node.js and Python templates
-- **JSON Output**: All responses are formatted for easy reading
+- **JSON Output**: All responses are formatted for easy reading with optional detailed information
 - **Configurable Base URL**: Target different mcpx registry instances
 
 ## API Endpoints Supported
 
 - `GET /v0/health` - Health check and status
-- `GET /v0/servers` - List servers with optional pagination
-- `GET /v0/servers/{id}` - Get detailed server information
+- `GET /v0/servers` - List servers with basic information and optional pagination
+- `GET /v0/servers/{id}` - Get detailed server information including packages and remotes
 - `POST /v0/publish` - Publish a new server (requires authentication)
+
+**Note**: The API follows a common pattern where the list endpoint (`/v0/servers`) returns basic server metadata for efficient browsing, while the detail endpoint (`/v0/servers/{id}`) provides complete information including packages and remotes. The CLI's `--detailed` flag bridges this gap by automatically fetching detailed information for all servers in a list.
 
 ## Installation
 
@@ -56,8 +59,19 @@ mcpx-cli [global flags] <command> [command flags]
 ### Global Flags
 
 - `--base-url=string`: Base url of the mcpx api (default: http://localhost:8080)
+- `--version`: Show version information
 
 ### Commands
+
+#### Version Information
+
+Check the CLI version:
+
+```bash
+mcpx-cli --version
+# or
+mcpx-cli version
+```
 
 #### Health Check
 
@@ -88,11 +102,24 @@ mcpx-cli servers --limit 10
 
 # Use pagination cursor
 mcpx-cli servers --cursor "uuid-cursor-string" --limit 5
+
+# Output in JSON format
+mcpx-cli servers --json
+
+# Get detailed server information including packages and remotes
+mcpx-cli servers --json --detailed
+
+# Combine JSON with pagination and detailed info
+mcpx-cli servers --json --limit 10 --detailed
 ```
 
 **Flags:**
 - `--cursor string`: Pagination cursor for next page
 - `--limit int`: Maximum number of servers to return (default: 30)
+- `--json`: Output servers details in JSON format
+- `--detailed`: Include packages and remotes in JSON output (requires --json)
+
+**Note**: The `--detailed` flag makes individual API calls for each server to retrieve complete information. For large server lists, consider using `--limit` to reduce the number of requests and improve performance.
 
 Example output:
 ```
@@ -110,18 +137,123 @@ Version: 1.0.2
 Release Date: 2023-06-15T10:30:00Z
 ```
 
+Example JSON output (with `--json` flag):
+```json
+{
+  "servers": [
+    {
+      "id": "a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1",
+      "name": "io.modelcontextprotocol/filesystem",
+      "description": "Node.js server implementing Model Context Protocol (MCP) for filesystem operations",
+      "repository": {
+        "url": "https://github.com/modelcontextprotocol/servers",
+        "source": "github",
+        "id": "modelcontextprotocol/servers"
+      },
+      "version_detail": {
+        "version": "1.0.2",
+        "release_date": "2023-06-15T10:30:00Z",
+        "is_latest": true
+      }
+    }
+  ],
+  "metadata": {
+    "next_cursor": "some-uuid-cursor",
+    "count": 1,
+    "total": 2
+  }
+}
+```
+
+**Note**: The basic `--json` output only includes server metadata. For complete server information including packages and remotes, use `--detailed` with `--json`:
+
+```bash
+mcpx-cli servers --json --detailed
+```
+
+Example detailed JSON output (with `--detailed` flag):
+```json
+{
+  "servers": [
+    {
+      "id": "a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1",
+      "name": "io.modelcontextprotocol/filesystem",
+      "description": "Node.js server implementing Model Context Protocol (MCP) for filesystem operations",
+      "repository": {
+        "url": "https://github.com/modelcontextprotocol/servers",
+        "source": "github",
+        "id": "modelcontextprotocol/servers"
+      },
+      "version_detail": {
+        "version": "1.0.2",
+        "release_date": "2023-06-15T10:30:00Z",
+        "is_latest": true
+      },
+      "packages": [
+        {
+          "registry_name": "npm",
+          "name": "@modelcontextprotocol/server-filesystem",
+          "version": "1.0.2",
+          "runtime_hint": "npx",
+          "runtime_arguments": [
+            {
+              "type": "positional",
+              "name": "target_dir",
+              "description": "Path to access",
+              "format": "string",
+              "is_required": true,
+              "default": "/Users/username/Desktop",
+              "value_hint": "target_dir"
+            }
+          ],
+          "environment_variables": [
+            {
+              "name": "LOG_LEVEL",
+              "description": "Logging level (debug, info, warn, error)",
+              "format": "string",
+              "is_required": false,
+              "default": "info"
+            }
+          ]
+        }
+      ],
+      "remotes": [
+        {
+          "transport_type": "stdio",
+          "url": "npx @modelcontextprotocol/server-filesystem"
+        }
+      ]
+    }
+  ],
+  "metadata": {
+    "next_cursor": "some-uuid-cursor",
+    "count": 1,
+    "total": 2
+  }
+}
+```
+
 #### Get Server Details
 
 Get comprehensive information about a specific server:
 
 ```bash
 mcpx-cli server <server-id>
+
+# Output in JSON format
+mcpx-cli server <server-id> --json
 ```
 
 Example:
 ```bash
 mcpx-cli server a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1
+
+# Or with JSON output
+mcpx-cli server a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 --json
 ```
+
+**Flags:**
+- `--json`: Output server details in JSON format
 
 Example output:
 ```
@@ -142,6 +274,59 @@ Packages:
     Runtime Hint: npx
     Environment Variables:
       - LOG_LEVEL: Logging level (debug, info, warn, error)
+```
+
+Example JSON output (with `--json` flag):
+```json
+{
+  "id": "a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1",
+  "name": "io.modelcontextprotocol/filesystem",
+  "description": "Node.js server implementing Model Context Protocol (MCP) for filesystem operations",
+  "repository": {
+    "url": "https://github.com/modelcontextprotocol/servers",
+    "source": "github",
+    "id": "modelcontextprotocol/servers"
+  },
+  "version_detail": {
+    "version": "1.0.2",
+    "release_date": "2023-06-15T10:30:00Z",
+    "is_latest": true
+  },
+  "packages": [
+    {
+      "registry_name": "npm",
+      "name": "@modelcontextprotocol/server-filesystem",
+      "version": "1.0.2",
+      "runtime_hint": "npx",
+      "runtime_arguments": [
+        {
+          "type": "named",
+          "name": "--module",
+          "description": "Run as Node.js module",
+          "format": "string",
+          "is_required": true,
+          "default": "-m",
+          "value_hint": "-m"
+        }
+      ],
+      "environment_variables": [
+        {
+          "name": "LOG_LEVEL",
+          "description": "Logging level (debug, info, warn, error)",
+          "format": "string",
+          "is_required": false,
+          "default": "info"
+        }
+      ]
+    }
+  ],
+  "remotes": [
+    {
+      "transport_type": "stdio",
+      "url": "npx @modelcontextprotocol/server-filesystem"
+    }
+  ]
+}
 ```
 
 #### Publish Server
@@ -363,22 +548,73 @@ make demo-all
 ### Complete Workflow
 
 ```bash
+# 0. Check CLI version
+mcpx-cli --version
+
 # 1. Check api health
 mcpx-cli health
 
 # 2. List available servers
 mcpx-cli servers --limit 5
 
-# 3. Get details for a specific server
+# 3. List servers in JSON format (for programmatic processing)
+mcpx-cli servers --json --limit 10
+
+# 3b. List servers with complete details including packages and remotes
+mcpx-cli servers --json --detailed --limit 5
+
+# 4. Get details for a specific server
 mcpx-cli server a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1
 
-# 4. Publish a new server (file-based)
+# 4b. Get server details in JSON format (for programmatic processing)
+mcpx-cli server a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 --json
+
+# 5. Publish a new server (file-based)
 mcpx-cli publish example-server.json --token ghp_your_token_here  # GitHub projects
 mcpx-cli publish example-server.json  # Non-GitHub projects
 
-# 5. Publish a new server (interactive mode)
+# 6. Publish a new server (interactive mode)
 mcpx-cli publish --interactive --token ghp_your_token_here  # GitHub projects
 mcpx-cli publish --interactive  # Non-GitHub projects
+```
+
+### JSON Output for Automation
+
+The `--json` flag is perfect for scripting and automation:
+
+```bash
+# Get servers as JSON and process with jq
+mcpx-cli servers --json | jq '.servers[].name'
+
+# Find servers by name pattern
+mcpx-cli servers --json | jq '.servers[] | select(.name | contains("filesystem"))'
+
+# Extract server IDs for batch processing
+mcpx-cli servers --json | jq -r '.servers[].id'
+
+# Get all servers with detailed information (packages and remotes)
+mcpx-cli servers --json --detailed
+
+# Extract package names from all servers with detailed info
+mcpx-cli servers --json --detailed | jq -r '.servers[].packages[].name'
+
+# Find servers with specific package registry
+mcpx-cli servers --json --detailed | jq '.servers[] | select(.packages[]?.registry_name == "npm")'
+
+# Get all remote transport types
+mcpx-cli servers --json --detailed | jq -r '.servers[].remotes[]?.transport_type' | sort -u
+
+# Get detailed server information in JSON format
+mcpx-cli server a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 --json
+
+# Extract specific fields from server details
+mcpx-cli server a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 --json | jq '.packages[].name'
+
+# Get all package registries from a server
+mcpx-cli server a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 --json | jq -r '.packages[].registry_name'
+
+# Extract remote URLs
+mcpx-cli server a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 --json | jq -r '.remotes[].url'
 ```
 
 ### Working with Different Registries
