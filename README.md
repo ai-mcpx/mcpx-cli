@@ -55,7 +55,7 @@ mcpx-cli [global flags] <command> [command flags]
 
 ### Global Flags
 
-- `--base-url string`: Base url of the mcpx api (default: http://localhost:8080)
+- `--base-url=string`: Base url of the mcpx api (default: http://localhost:8080)
 
 ### Commands
 
@@ -262,13 +262,13 @@ Use the `--base-url` flag to target different mcpx registry instances:
 
 ```bash
 # Local development
-mcpx-cli --base-url http://localhost:8080 servers
+mcpx-cli --base-url=http://localhost:8080 servers
 
 # Production instance
-mcpx-cli --base-url https://registry.modelcontextprotocol.io servers
+mcpx-cli --base-url=https://registry.modelcontextprotocol.io servers
 
 # Custom instance
-mcpx-cli --base-url https://your-custom-registry.com servers
+mcpx-cli --base-url=https://your-custom-registry.com servers
 ```
 
 ## Server JSON Format
@@ -385,13 +385,13 @@ mcpx-cli publish --interactive  # Non-GitHub projects
 
 ```bash
 # Development environment
-mcpx-cli --base-url http://localhost:8080 health
+mcpx-cli --base-url=http://localhost:8080 health
 
 # Staging environment
-mcpx-cli --base-url https://staging-registry.example.com servers
+mcpx-cli --base-url=https://staging-registry.example.com servers
 
 # Production environment
-mcpx-cli --base-url https://registry.modelcontextprotocol.io servers
+mcpx-cli --base-url=https://registry.modelcontextprotocol.io servers
 ```
 
 ## Error Handling

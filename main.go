@@ -561,7 +561,7 @@ func printUsage() {
 	fmt.Println("  mcpx-cli [global flags] <command> [command flags]")
 	fmt.Println()
 	fmt.Println("Global Flags:")
-	fmt.Println("  --base-url string    Base url of the mcpx api (default: http://localhost:8080)")
+	fmt.Println("  --base-url=string    Base url of the mcpx api (default: http://localhost:8080)")
 	fmt.Println()
 	fmt.Println("Commands:")
 	fmt.Println("  help                       Show this help message")
@@ -582,12 +582,12 @@ func printUsage() {
 	fmt.Println("Examples:")
 	fmt.Println("  mcpx-cli health")
 	fmt.Println("  mcpx-cli servers --limit 10")
-	fmt.Println("  mcpx-cli server a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1")
+	fmt.Println("  mcpx-cli server <id>")
 	fmt.Println("  mcpx-cli publish server.json --token your_github_token  # GitHub projects")
-	fmt.Println("  mcpx-cli publish server.json                           # Non-GitHub projects")
+	fmt.Println("  mcpx-cli publish server.json                            # Non-GitHub projects")
 	fmt.Println("  mcpx-cli publish --interactive --token your_github_token")
 	fmt.Println("  mcpx-cli publish --interactive")
-	fmt.Println("  mcpx-cli --base-url http://prod.example.com servers")
+	fmt.Println("  mcpx-cli --base-url=http://prod.example.com servers")
 }
 
 func main() {
