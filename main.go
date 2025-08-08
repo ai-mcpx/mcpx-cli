@@ -622,6 +622,43 @@ func (c *MCPXClient) PublishServerInteractive(token string) error {
 	return nil
 }
 
+func (c *MCPXClient) DeleteServer(serverID, token string, jsonOutput bool) error {
+	if !jsonOutput {
+		fmt.Printf("=== Delete Server %s ===\n", serverID)
+	}
+
+	endpoint := "/v0/servers/" + serverID
+
+	response, err := c.makeRequest("DELETE", endpoint, nil, token)
+	if err != nil {
+		return fmt.Errorf("delete server request failed: %w", err)
+	}
+	defer func(Body io.ReadCloser) {
+		_ = Body.Close()
+	}(response.Body)
+
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if response.StatusCode == http.StatusNotFound {
+		return fmt.Errorf("server not found: %s", serverID)
+	}
+
+	if response.StatusCode != http.StatusOK && response.StatusCode != http.StatusNoContent {
+		return fmt.Errorf("delete server failed with status %d: %s", response.StatusCode, string(body))
+	}
+
+	if jsonOutput {
+		fmt.Printf("{\"message\": \"Server %s deleted successfully\"}\n", serverID)
+	} else {
+		fmt.Printf("✅ Server '%s' deleted successfully\n", serverID)
+	}
+
+	return nil
+}
+
 func printUsage() {
 	fmt.Println("mcpx-cli - A command-line client for the mcpx registry api")
 	fmt.Println()
@@ -633,13 +670,14 @@ func printUsage() {
 	fmt.Println("  --version            Show version information")
 	fmt.Println()
 	fmt.Println("Commands:")
-	fmt.Println("  help                       Show this help message")
-	fmt.Println("  version                    Show version information")
-	fmt.Println("  health                     Check api health status")
-	fmt.Println("  servers                    List all servers")
-	fmt.Println("  server <id> [--json]       Get server details by ID")
-	fmt.Println("  publish <server.json>      Publish a server to the registry")
-	fmt.Println("  publish --interactive      Interactive mode to create and publish a server")
+	fmt.Println("  help                                Show this help message")
+	fmt.Println("  version                             Show version information")
+	fmt.Println("  health                              Check api health status")
+	fmt.Println("  servers                             List all servers")
+	fmt.Println("  server <id> [--json]                Get server details by ID")
+	fmt.Println("  delete <id> [--token] [--json]      Delete a server by ID (token optional)")
+	fmt.Println("  publish <server.json>               Publish a server to the registry")
+	fmt.Println("  publish --interactive               Interactive mode to create and publish a server")
 	fmt.Println()
 	fmt.Println("Server List Flags:")
 	fmt.Println("  --cursor string      Pagination cursor")
@@ -654,16 +692,23 @@ func printUsage() {
 	fmt.Println("  --token string       Authentication token (required for io.github.* servers)")
 	fmt.Println("  --interactive        Interactive mode to create server configuration")
 	fmt.Println()
+	fmt.Println("Delete Flags:")
+	fmt.Println("  --token string       Authentication token (optional)")
+	fmt.Println("  --json               Output result in JSON format")
+	fmt.Println()
 	fmt.Println("Examples:")
 	fmt.Println("  mcpx-cli health")
 	fmt.Println("  mcpx-cli servers --limit 10")
 	fmt.Println("  mcpx-cli servers --json --detailed")
 	fmt.Println("  mcpx-cli server <id> [--json]")
+	fmt.Println("  mcpx-cli delete <id> --token your_token                   # With authentication")
+	fmt.Println("  mcpx-cli delete <id>                                      # Without authentication")
+	fmt.Println("  mcpx-cli delete <id> --json                               # JSON output")
 	fmt.Println("  mcpx-cli publish server.json --token your_github_token    # GitHub projects")
 	fmt.Println("  mcpx-cli publish server.json                              # Non-GitHub projects")
 	fmt.Println("  mcpx-cli publish --interactive --token your_github_token  # GitHub projects")
 	fmt.Println("  mcpx-cli publish --interactive                            # Non-GitHub projects")
-	fmt.Println("  mcpx-cli --base-url=http://prod.example.com servers")
+	fmt.Println("  mcpx-cli --base-url=http://localhost:8080 servers")
 }
 
 func main() {
@@ -764,7 +809,7 @@ func main() {
 		var token string
 		var interactive bool
 		publishFlags := flag.NewFlagSet("publish", flag.ExitOnError)
-		publishFlags.StringVar(&token, "token", "", "Authentication token (required)")
+		publishFlags.StringVar(&token, "token", "", "Authentication token (optional)")
 		publishFlags.BoolVar(&interactive, "interactive", false, "Interactive mode to create server configuration")
 		flagArgs := args[1:]
 		var serverFile string
@@ -795,6 +840,33 @@ func main() {
 			if err := client.PublishServer(serverFile, token); err != nil {
 				log.Fatalf("Publish server failed: %v", err)
 			}
+		}
+	case "delete":
+		var token string
+		var jsonOutput bool
+		deleteFlags := flag.NewFlagSet("delete", flag.ExitOnError)
+		deleteFlags.StringVar(&token, "token", "", "Authentication token (optional)")
+		deleteFlags.BoolVar(&jsonOutput, "json", false, "Output result in JSON format")
+		var serverID string
+		var flagArgs []string
+		for i, arg := range args[1:] {
+			if strings.HasPrefix(arg, "-") {
+				flagArgs = args[i+1:]
+				break
+			} else {
+				serverID = arg
+			}
+		}
+		if serverID == "" {
+			fmt.Println("Error: server ID is required")
+			fmt.Println("Usage: mcpx-cli delete <id> [--token <token>] [--json]")
+			os.Exit(1)
+		}
+		if err := deleteFlags.Parse(flagArgs); err != nil {
+			log.Fatalf("Error parsing delete flags: %v", err)
+		}
+		if err := client.DeleteServer(serverID, token, jsonOutput); err != nil {
+			log.Fatalf("Delete server failed: %v", err)
 		}
 	default:
 		fmt.Printf("Unknown command: %s\n\n", command)

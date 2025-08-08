@@ -9,6 +9,7 @@ A command-line interface for interacting with the mcpx registry api. This CLI pr
 - **Server Details**: Get comprehensive information about specific servers
 - **Detailed Server Information**: Retrieve complete server data including packages and remotes
 - **Server Publishing**: Publish new MCP servers to the registry (requires authentication)
+- **Server Deletion**: Delete servers from the registry (requires authentication)
 - **Interactive Mode**: Create server configurations interactively with Node.js and Python templates
 - **JSON Output**: All responses are formatted for easy reading with optional detailed information
 - **Configurable Base URL**: Target different mcpx registry instances
@@ -19,6 +20,7 @@ A command-line interface for interacting with the mcpx registry api. This CLI pr
 - `GET /v0/servers` - List servers with basic information and optional pagination
 - `GET /v0/servers/{id}` - Get detailed server information including packages and remotes
 - `POST /v0/publish` - Publish a new server (requires authentication)
+- `DELETE /v0/servers/{id}` - Delete a server from the registry (requires authentication)
 
 **Note**: The API follows a common pattern where the list endpoint (`/v0/servers`) returns basic server metadata for efficient browsing, while the detail endpoint (`/v0/servers/{id}`) provides complete information including packages and remotes. The CLI's `--detailed` flag bridges this gap by automatically fetching detailed information for all servers in a list.
 
@@ -329,6 +331,68 @@ Example JSON output (with `--json` flag):
 }
 ```
 
+#### Delete Server
+
+Delete a server from the registry. Authentication may be required depending on the server and registry configuration.
+
+```bash
+# With authentication token
+mcpx-cli delete <server-id> --token <auth-token>
+
+# Without authentication token (if supported by registry)
+mcpx-cli delete <server-id>
+
+# With JSON output
+mcpx-cli delete <server-id> --json
+
+# Combined flags
+mcpx-cli delete <server-id> --token <auth-token> --json
+```
+
+Example:
+```bash
+# Delete a server with authentication token
+mcpx-cli delete a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 --token ghp_your_github_token_here
+
+# Delete a server without authentication (if supported)
+mcpx-cli delete a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1
+
+# Skip interactive confirmation
+mcpx-cli delete a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 --token ghp_your_token --confirm
+
+# Output result in JSON format
+mcpx-cli delete a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 --json
+```
+
+**Flags:**
+- `--token string`: Authentication token (optional)
+- `--json`: Output result in JSON format
+- `--confirm`: Skip interactive confirmation prompt
+
+**Important Notes:**
+- **Irreversible operation**: Deleted servers cannot be recovered
+- **Authentication**: Token may be required depending on the server and registry configuration
+- **Permission check**: You can only delete servers you have permission to modify
+- **Confirmation prompt**: By default, the CLI will ask for confirmation before deletion
+
+Example output:
+```
+=== Delete Server (ID: a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1) ===
+Server Name: io.modelcontextprotocol/filesystem
+Server Description: Node.js server implementing Model Context Protocol (MCP) for filesystem operations
+
+Are you sure you want to delete this server? This action cannot be undone.
+Type 'yes' to confirm: yes
+
+Status Code: 200
+Success: Server deleted successfully
+```
+
+JSON output example:
+```json
+{"message": "Server a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 deleted successfully"}
+```
+
 #### Publish Server
 
 Publish a new MCP server to the registry. The CLI supports two modes:
@@ -576,6 +640,11 @@ mcpx-cli publish example-server.json  # Non-GitHub projects
 # 6. Publish a new server (interactive mode)
 mcpx-cli publish --interactive --token ghp_your_token_here  # GitHub projects
 mcpx-cli publish --interactive  # Non-GitHub projects
+
+# 7. Delete a server
+mcpx-cli delete a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 --token ghp_your_token_here  # With authentication
+mcpx-cli delete a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1  # Without authentication (if supported)
+mcpx-cli delete a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 --json  # JSON output for automation
 ```
 
 ### JSON Output for Automation
@@ -615,6 +684,22 @@ mcpx-cli server a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 --json | jq -r '.packages[]
 
 # Extract remote URLs
 mcpx-cli server a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 --json | jq -r '.remotes[].url'
+
+# Batch operations with server management
+# Find servers with deprecated status and extract their IDs
+mcpx-cli servers --json --detailed | jq -r '.servers[] | select(.status == "deprecated") | .id'
+
+# Delete multiple servers by filtering (example with careful scripting)
+# Note: Always verify IDs before bulk deletion!
+TOKEN="ghp_your_token_here"
+mcpx-cli servers --json | jq -r '.servers[] | select(.name | contains("test")) | .id' | \
+  while read id; do
+    echo "Deleting server: $id"
+    mcpx-cli delete "$id" --token "$TOKEN" --confirm --json | jq '.message'
+  done
+
+# Delete server with JSON output for automation/logging
+mcpx-cli delete a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 --json --token "$TOKEN" | jq '.message'
 ```
 
 ### Working with Different Registries
@@ -637,6 +722,8 @@ The CLI provides clear error messages for common issues:
 - **Connection errors**: Network connectivity problems
 - **Authentication errors**: Invalid or missing tokens
 - **Validation errors**: Invalid server JSON format
+- **Permission errors**: Attempting to delete servers you don't own
+- **Not found errors**: Server ID not found for deletion
 - **Server errors**: API-specific error responses
 
 All errors include HTTP status codes and detailed error messages when available.
