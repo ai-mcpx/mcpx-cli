@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	_ "embed"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -14,6 +15,12 @@ import (
 	"strings"
 	"time"
 )
+
+//go:embed example-server-node.json
+var exampleServerNodeJSON []byte
+
+//go:embed example-server-python.json
+var exampleServerPythonJSON []byte
 
 const (
 	defaultBaseURL = "http://localhost:8080"
@@ -493,16 +500,11 @@ func createInteractiveServer() (*ServerDetail, error) {
 
 	runtime := promptChoice("Select server runtime:", []string{"node", "python"}, "node")
 
-	var templateFile string
+	var data []byte
 	if runtime == "node" {
-		templateFile = "example-server-node.json"
+		data = exampleServerNodeJSON
 	} else {
-		templateFile = "example-server-python.json"
-	}
-
-	data, err := os.ReadFile(templateFile)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load template %s: %w", templateFile, err)
+		data = exampleServerPythonJSON
 	}
 
 	var server ServerDetail
