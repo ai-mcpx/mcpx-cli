@@ -624,6 +624,66 @@ func (c *MCPXClient) PublishServerInteractive(token string) error {
 	return nil
 }
 
+func (c *MCPXClient) UpdateServer(serverID, serverFile, token string, jsonOutput bool) error {
+	if !jsonOutput {
+		fmt.Printf("=== Update Server %s ===\n", serverID)
+	}
+
+	data, err := os.ReadFile(serverFile)
+	if err != nil {
+		return fmt.Errorf("failed to read server file: %w", err)
+	}
+
+	var serverDetail ServerDetail
+	if err := json.Unmarshal(data, &serverDetail); err != nil {
+		return fmt.Errorf("invalid JSON in server file: %w", err)
+	}
+
+	if strings.HasPrefix(serverDetail.Name, "io.github.") && token == "" {
+		return fmt.Errorf("authentication token is required for GitHub namespaced servers (io.github.*)")
+	}
+
+	endpoint := "/v0/servers/" + serverID
+
+	resp, err := c.makeRequest("PUT", endpoint, data, token)
+	if err != nil {
+		return fmt.Errorf("update server request failed: %w", err)
+	}
+	defer func(Body io.ReadCloser) {
+		_ = Body.Close()
+	}(resp.Body)
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response: %w", err)
+	}
+
+	if !jsonOutput {
+		fmt.Printf("Status Code: %d\n", resp.StatusCode)
+	}
+
+	if resp.StatusCode == 200 {
+		if jsonOutput {
+			fmt.Println(string(body))
+		} else {
+			var updateResp map[string]string
+			if err := json.Unmarshal(body, &updateResp); err != nil {
+				return fmt.Errorf("failed to parse response: %w", err)
+			}
+			fmt.Printf("✅ %s\n", updateResp["message"])
+			fmt.Printf("Server ID: %s\n", updateResp["id"])
+		}
+	} else {
+		if jsonOutput {
+			fmt.Println(string(body))
+		} else {
+			fmt.Printf("❌ Update failed: %s\n", string(body))
+		}
+	}
+
+	return nil
+}
+
 func (c *MCPXClient) DeleteServer(serverID, token string, jsonOutput bool) error {
 	if !jsonOutput {
 		fmt.Printf("=== Delete Server %s ===\n", serverID)
@@ -677,6 +737,7 @@ func printUsage() {
 	fmt.Println("  health                              Check api health status")
 	fmt.Println("  servers                             List all servers")
 	fmt.Println("  server <id> [--json]                Get server details by ID")
+	fmt.Println("  update <id> <server.json> [--token] [--json]  Update a server by ID")
 	fmt.Println("  delete <id> [--token] [--json]      Delete a server by ID (token optional)")
 	fmt.Println("  publish <server.json>               Publish a server to the registry")
 	fmt.Println("  publish --interactive               Interactive mode to create and publish a server")
@@ -689,6 +750,10 @@ func printUsage() {
 	fmt.Println()
 	fmt.Println("Server Detail Flags:")
 	fmt.Println("  --json               Output server details in JSON format")
+	fmt.Println()
+	fmt.Println("Update Flags:")
+	fmt.Println("  --token string       Authentication token (required for io.github.* servers)")
+	fmt.Println("  --json               Output result in JSON format")
 	fmt.Println()
 	fmt.Println("Publish Flags:")
 	fmt.Println("  --token string       Authentication token (required for io.github.* servers)")
@@ -703,13 +768,16 @@ func printUsage() {
 	fmt.Println("  mcpx-cli servers --limit 10")
 	fmt.Println("  mcpx-cli servers --json --detailed")
 	fmt.Println("  mcpx-cli server <id> [--json]")
-	fmt.Println("  mcpx-cli delete <id> --token your_token                   # With authentication")
-	fmt.Println("  mcpx-cli delete <id>                                      # Without authentication")
-	fmt.Println("  mcpx-cli delete <id> --json                               # JSON output")
-	fmt.Println("  mcpx-cli publish server.json --token your_github_token    # GitHub projects")
-	fmt.Println("  mcpx-cli publish server.json                              # Non-GitHub projects")
-	fmt.Println("  mcpx-cli publish --interactive --token your_github_token  # GitHub projects")
-	fmt.Println("  mcpx-cli publish --interactive                            # Non-GitHub projects")
+	fmt.Println("  mcpx-cli update <id> server.json --token your_token         # With authentication")
+	fmt.Println("  mcpx-cli update <id> server.json                            # Without authentication")
+	fmt.Println("  mcpx-cli update <id> server.json --json                     # JSON output")
+	fmt.Println("  mcpx-cli delete <id> --token your_token                     # With authentication")
+	fmt.Println("  mcpx-cli delete <id>                                        # Without authentication")
+	fmt.Println("  mcpx-cli delete <id> --json                                 # JSON output")
+	fmt.Println("  mcpx-cli publish server.json --token your_github_token      # GitHub projects")
+	fmt.Println("  mcpx-cli publish server.json                                # Non-GitHub projects")
+	fmt.Println("  mcpx-cli publish --interactive --token your_github_token    # GitHub projects")
+	fmt.Println("  mcpx-cli publish --interactive                              # Non-GitHub projects")
 	fmt.Println("  mcpx-cli --base-url=http://localhost:8080 servers")
 }
 
@@ -806,6 +874,49 @@ func main() {
 		}
 		if err := client.GetServer(serverID, jsonOutput); err != nil {
 			log.Fatalf("Get server failed: %v", err)
+		}
+	case "update":
+		var token string
+		var jsonOutput bool
+		updateFlags := flag.NewFlagSet("update", flag.ExitOnError)
+		updateFlags.StringVar(&token, "token", "", "Authentication token (required for io.github.* servers)")
+		updateFlags.BoolVar(&jsonOutput, "json", false, "Output result in JSON format")
+		var serverID string
+		var serverFile string
+		var flagArgs []string
+
+		// Parse serverID and serverFile from positional arguments
+		argIndex := 0
+		for i, arg := range args[1:] {
+			if strings.HasPrefix(arg, "-") {
+				flagArgs = args[i+1:]
+				break
+			} else {
+				switch argIndex {
+				case 0:
+					serverID = arg
+				case 1:
+					serverFile = arg
+				}
+				argIndex++
+			}
+		}
+
+		if serverID == "" {
+			fmt.Println("Error: server ID is required")
+			fmt.Println("Usage: mcpx-cli update <id> <server.json> [--token <token>] [--json]")
+			os.Exit(1)
+		}
+		if serverFile == "" {
+			fmt.Println("Error: server file is required")
+			fmt.Println("Usage: mcpx-cli update <id> <server.json> [--token <token>] [--json]")
+			os.Exit(1)
+		}
+		if err := updateFlags.Parse(flagArgs); err != nil {
+			log.Fatalf("Error parsing update flags: %v", err)
+		}
+		if err := client.UpdateServer(serverID, serverFile, token, jsonOutput); err != nil {
+			log.Fatalf("Update server failed: %v", err)
 		}
 	case "publish":
 		var token string

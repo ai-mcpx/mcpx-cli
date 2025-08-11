@@ -9,6 +9,7 @@ A command-line interface for interacting with the mcpx registry api. This CLI pr
 - **Server Details**: Get comprehensive information about specific servers
 - **Detailed Server Information**: Retrieve complete server data including packages and remotes
 - **Server Publishing**: Publish new MCP servers to the registry (requires authentication)
+- **Server Updates**: Update existing MCP servers in the registry (requires authentication)
 - **Server Deletion**: Delete servers from the registry (requires authentication)
 - **Interactive Mode**: Create server configurations interactively with Node.js and Python templates
 - **JSON Output**: All responses are formatted for easy reading with optional detailed information
@@ -20,6 +21,7 @@ A command-line interface for interacting with the mcpx registry api. This CLI pr
 - `GET /v0/servers` - List servers with basic information and optional pagination
 - `GET /v0/servers/{id}` - Get detailed server information including packages and remotes
 - `POST /v0/publish` - Publish a new server (requires authentication)
+- `PUT /v0/servers/{id}` - Update an existing server (requires authentication)
 - `DELETE /v0/servers/{id}` - Delete a server from the registry (requires authentication)
 
 **Note**: The API follows a common pattern where the list endpoint (`/v0/servers`) returns basic server metadata for efficient browsing, while the detail endpoint (`/v0/servers/{id}`) provides complete information including packages and remotes. The CLI's `--detailed` flag bridges this gap by automatically fetching detailed information for all servers in a list.
@@ -391,6 +393,117 @@ Success: Server deleted successfully
 JSON output example:
 ```json
 {"message": "Server a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 deleted successfully"}
+```
+
+#### Update Server
+
+Update an existing MCP server in the registry. Authentication may be required depending on the server and registry configuration.
+
+```bash
+# Update with authentication token
+mcpx-cli update <server-id> <server.json> --token <auth-token>
+
+# Update without authentication token (if supported by registry)
+mcpx-cli update <server-id> <server.json>
+
+# With JSON output
+mcpx-cli update <server-id> <server.json> --json
+
+# Combined flags
+mcpx-cli update <server-id> <server.json> --token <auth-token> --json
+```
+
+Example:
+```bash
+# Update a server with authentication token
+mcpx-cli update a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 updated-server.json --token ghp_your_github_token_here
+
+# Update a server without authentication (if supported)
+mcpx-cli update a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 updated-server.json
+
+# Output result in JSON format
+mcpx-cli update a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 updated-server.json --json
+```
+
+**Flags:**
+- `--token string`: Authentication token (optional)
+- `--json`: Output result in JSON format
+
+**Important Notes:**
+- **Server configuration file**: The JSON file should contain the complete server configuration
+- **Authentication**: Token may be required depending on the server and registry configuration
+- **Permission check**: You can only update servers you have permission to modify
+- **Validation**: The server configuration will be validated before update
+
+Example server configuration file (`updated-server.json`):
+```json
+{
+  "name": "io.modelcontextprotocol/filesystem",
+  "description": "Updated Node.js server implementing Model Context Protocol (MCP) for filesystem operations",
+  "repository": {
+    "url": "https://github.com/modelcontextprotocol/servers",
+    "source": "github"
+  },
+  "version_detail": {
+    "version": "1.0.3",
+    "is_latest": true
+  },
+  "packages": [
+    {
+      "registry_name": "npm",
+      "name": "@modelcontextprotocol/server-filesystem",
+      "version": "1.0.3",
+      "runtime_hint": "npx",
+      "runtime_arguments": [
+        {
+          "type": "positional",
+          "name": "target_dir",
+          "description": "Path to access",
+          "format": "string",
+          "is_required": true,
+          "default": "/Users/username/Desktop",
+          "value_hint": "target_dir"
+        }
+      ],
+      "environment_variables": [
+        {
+          "name": "LOG_LEVEL",
+          "description": "Logging level (debug, info, warn, error)",
+          "format": "string",
+          "is_required": false,
+          "default": "info"
+        }
+      ]
+    }
+  ],
+  "remotes": [
+    {
+      "transport_type": "stdio",
+      "url": "npx @modelcontextprotocol/server-filesystem"
+    }
+  ]
+}
+```
+
+Example output:
+```
+=== Update Server (ID: a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1) ===
+Status Code: 200
+Success: Server updated successfully
+Updated Server Name: io.modelcontextprotocol/filesystem
+Updated Version: 1.0.3
+```
+
+JSON output example:
+```json
+{
+  "message": "Server updated successfully",
+  "server": {
+    "id": "a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1",
+    "name": "io.modelcontextprotocol/filesystem",
+    "version": "1.0.3"
+  }
+}
 ```
 
 #### Publish Server
