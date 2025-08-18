@@ -16,11 +16,14 @@ import (
 	"time"
 )
 
-//go:embed example-server-node.json
-var exampleServerNodeJSON []byte
+//go:embed example-server-npm.json
+var exampleServerNPMJSON []byte
 
-//go:embed example-server-python.json
-var exampleServerPythonJSON []byte
+//go:embed example-server-pypi.json
+var exampleServerPyPiJSON []byte
+
+//go:embed example-server-wheel.json
+var exampleServerWheelJSON []byte
 
 const (
 	defaultBaseURL = "http://localhost:8080"
@@ -383,13 +386,34 @@ func (c *MCPXClient) GetServer(id string, jsonOutput bool) error {
 					fmt.Printf("    Registry: %s\n", pkg.RegistryName)
 					fmt.Printf("    Name: %s\n", pkg.Name)
 					fmt.Printf("    Version: %s\n", pkg.Version)
+					if pkg.WheelURL != "" {
+						fmt.Printf("    Wheel URL: %s\n", pkg.WheelURL)
+					}
 					if pkg.RuntimeHint != "" {
 						fmt.Printf("    Runtime Hint: %s\n", pkg.RuntimeHint)
 					}
 					if len(pkg.EnvironmentVariables) > 0 {
 						fmt.Printf("    Environment Variables:\n")
 						for _, env := range pkg.EnvironmentVariables {
-							fmt.Printf("      - %s: %s\n", env.Name, env.Description)
+							required := "optional"
+							if env.IsRequired {
+								required = "required"
+							}
+							fmt.Printf("      - %s: %s (%s)\n", env.Name, env.Description, required)
+						}
+					}
+					if len(pkg.RuntimeArguments) > 0 {
+						fmt.Printf("    Runtime Arguments:\n")
+						for _, arg := range pkg.RuntimeArguments {
+							required := "optional"
+							if arg.IsRequired {
+								required = "required"
+							}
+							nameInfo := arg.Type
+							if arg.Name != "" {
+								nameInfo = fmt.Sprintf("%s:%s", arg.Type, arg.Name)
+							}
+							fmt.Printf("      - %s (%s): %s\n", nameInfo, required, arg.Description)
 						}
 					}
 				}
@@ -517,13 +541,16 @@ func createInteractiveServer() (*ServerDetail, error) {
 	fmt.Println("=== Interactive Server Configuration ===")
 	fmt.Println()
 
-	runtime := promptChoice("Select server runtime:", []string{"node", "python"}, "node")
+	runtime := promptChoice("Select server runtime:", []string{"node", "python-pypi", "python-wheel"}, "node")
 
 	var data []byte
-	if runtime == "node" {
-		data = exampleServerNodeJSON
-	} else {
-		data = exampleServerPythonJSON
+	switch runtime {
+	case "node":
+		data = exampleServerNPMJSON
+	case "python-pypi":
+		data = exampleServerPyPiJSON
+	case "python-wheel":
+		data = exampleServerWheelJSON
 	}
 
 	var server ServerDetail
@@ -547,18 +574,66 @@ func createInteractiveServer() (*ServerDetail, error) {
 
 	if len(server.Packages) > 0 {
 		fmt.Println("\n--- Package Information ---")
-		pkg := &server.Packages[0]
-		if runtime == "node" {
-			pkg.Name = promptUser("NPM package name", pkg.Name)
-		} else {
-			pkg.Name = promptUser("PyPI package name", pkg.Name)
-		}
-		pkg.Version = promptUser("Package version", server.VersionDetail.Version)
-		if len(pkg.EnvironmentVariables) > 0 {
-			fmt.Println("\n--- Environment Variables ---")
-			for i := range pkg.EnvironmentVariables {
-				env := &pkg.EnvironmentVariables[i]
-				env.Default = promptUser(fmt.Sprintf("%s default value", env.Name), env.Default)
+		for pkgIndex := range server.Packages {
+			pkg := &server.Packages[pkgIndex]
+			fmt.Printf("\nConfiguring package %d (%s):\n", pkgIndex+1, pkg.RegistryName)
+
+			switch pkg.RegistryName {
+			case "npm":
+				pkg.Name = promptUser("NPM package name", pkg.Name)
+			case "pypi":
+				pkg.Name = promptUser("PyPI package name", pkg.Name)
+				if pkg.WheelURL != "" {
+					pkg.WheelURL = promptUser("Wheel URL", pkg.WheelURL)
+				}
+			case "wheel":
+				pkg.Name = promptUser("Wheel package name", pkg.Name)
+				if pkg.WheelURL != "" {
+					pkg.WheelURL = promptUser("Wheel URL", pkg.WheelURL)
+				}
+			case "docker":
+				pkg.Name = promptUser("Docker image name", pkg.Name)
+			default:
+				pkg.Name = promptUser("Package name", pkg.Name)
+			}
+			pkg.Version = promptUser("Package version", pkg.Version)
+
+			if len(pkg.EnvironmentVariables) > 0 {
+				fmt.Printf("\n--- Environment Variables (%s) ---\n", pkg.RegistryName)
+				for i := range pkg.EnvironmentVariables {
+					env := &pkg.EnvironmentVariables[i]
+					fmt.Printf("\nConfiguring environment variable: %s\n", env.Name)
+					env.Default = promptUser(fmt.Sprintf("%s default value", env.Name), env.Default)
+					requiredChoice := "false"
+					if env.IsRequired {
+						requiredChoice = "true"
+					}
+					requiredStr := promptChoice(fmt.Sprintf("Is %s required?", env.Name), []string{"true", "false"}, requiredChoice)
+					env.IsRequired = requiredStr == "true"
+				}
+			}
+			if len(pkg.RuntimeArguments) > 0 {
+				fmt.Printf("\n--- Runtime Arguments (%s) ---\n", pkg.RegistryName)
+				for i := range pkg.RuntimeArguments {
+					arg := &pkg.RuntimeArguments[i]
+					argIdentifier := arg.Description
+					if arg.Name != "" {
+						argIdentifier = fmt.Sprintf("%s (%s)", arg.Description, arg.Name)
+					}
+					fmt.Printf("\nConfiguring runtime argument: %s\n", argIdentifier)
+					if arg.Name != "" {
+						arg.Name = promptUser("Argument name", arg.Name)
+					}
+					if arg.Default != "" {
+						arg.Default = promptUser(fmt.Sprintf("%s default value", arg.Description), arg.Default)
+					}
+					requiredChoice := "false"
+					if arg.IsRequired {
+						requiredChoice = "true"
+					}
+					requiredStr := promptChoice("Is this argument required?", []string{"true", "false"}, requiredChoice)
+					arg.IsRequired = requiredStr == "true"
+				}
 			}
 		}
 	}
