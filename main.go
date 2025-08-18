@@ -86,8 +86,15 @@ type InputWithVariables struct {
 }
 
 type KeyValueInput struct {
-	InputWithVariables `json:",inline"`
-	Name               string `json:"name"`
+	Name        string           `json:"name"`
+	Description string           `json:"description,omitempty"`
+	IsRequired  bool             `json:"is_required,omitempty"`
+	Format      string           `json:"format,omitempty"`
+	Value       string           `json:"value,omitempty"`
+	IsSecret    bool             `json:"is_secret,omitempty"`
+	Default     string           `json:"default,omitempty"`
+	Choices     []string         `json:"choices,omitempty"`
+	Variables   map[string]Input `json:"variables,omitempty"`
 }
 
 type Argument struct {
@@ -109,9 +116,9 @@ type Package struct {
 }
 
 type Remote struct {
-	TransportType string  `json:"transport_type"`
-	URL           string  `json:"url"`
-	Headers       []Input `json:"headers,omitempty"`
+	TransportType string          `json:"transport_type"`
+	URL           string          `json:"url"`
+	Headers       []KeyValueInput `json:"headers,omitempty"`
 }
 
 type ServerDetail struct {
@@ -438,15 +445,26 @@ func (c *MCPXClient) PublishServer(serverFile string, token string) error {
 
 	fmt.Printf("Status Code: %d\n", resp.StatusCode)
 
-	if resp.StatusCode == 201 {
+	if resp.StatusCode == 200 || resp.StatusCode == 201 {
+		// Try to parse as PublishResponse first
 		var publishResp PublishResponse
-		if err := json.Unmarshal(body, &publishResp); err != nil {
-			return fmt.Errorf("failed to parse response: %w", err)
+		if err := json.Unmarshal(body, &publishResp); err == nil && publishResp.Message != "" {
+			fmt.Printf("✅ Success: %s\n", publishResp.Message)
+			fmt.Printf("Server ID: %s\n", publishResp.ID)
+		} else {
+			// If not a PublishResponse, it might be a Server response (200 case)
+			var serverResp Server
+			if err := json.Unmarshal(body, &serverResp); err == nil && serverResp.ID != "" {
+				fmt.Printf("✅ Server published successfully\n")
+				fmt.Printf("Server ID: %s\n", serverResp.ID)
+			} else {
+				// Fallback: just show the response
+				fmt.Printf("✅ Success\n")
+				fmt.Printf("Response: %s\n", string(body))
+			}
 		}
-		fmt.Printf("Success: %s\n", publishResp.Message)
-		fmt.Printf("Server ID: %s\n", publishResp.ID)
 	} else {
-		fmt.Printf("Error: %s\n", string(body))
+		fmt.Printf("❌ Error: %s\n", string(body))
 	}
 
 	return nil
@@ -610,15 +628,26 @@ func (c *MCPXClient) PublishServerInteractive(token string) error {
 
 	fmt.Printf("Status Code: %d\n", resp.StatusCode)
 
-	if resp.StatusCode == 201 {
+	if resp.StatusCode == 200 || resp.StatusCode == 201 {
+		// Try to parse as PublishResponse first
 		var publishResp PublishResponse
-		if err := json.Unmarshal(body, &publishResp); err != nil {
-			return fmt.Errorf("failed to parse response: %w", err)
+		if err := json.Unmarshal(body, &publishResp); err == nil && publishResp.Message != "" {
+			fmt.Printf("✅ Success: %s\n", publishResp.Message)
+			fmt.Printf("Server ID: %s\n", publishResp.ID)
+		} else {
+			// If not a PublishResponse, it might be a Server response (200 case)
+			var serverResp Server
+			if err := json.Unmarshal(body, &serverResp); err == nil && serverResp.ID != "" {
+				fmt.Printf("✅ Server published successfully\n")
+				fmt.Printf("Server ID: %s\n", serverResp.ID)
+			} else {
+				// Fallback: just show the response
+				fmt.Printf("✅ Success\n")
+				fmt.Printf("Response: %s\n", string(body))
+			}
 		}
-		fmt.Printf("Success: %s\n", publishResp.Message)
-		fmt.Printf("Server ID: %s\n", publishResp.ID)
 	} else {
-		fmt.Printf("Error: %s\n", string(body))
+		fmt.Printf("❌ Error: %s\n", string(body))
 	}
 
 	return nil
