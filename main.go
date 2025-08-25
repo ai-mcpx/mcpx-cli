@@ -25,6 +25,9 @@ var exampleServerPyPiJSON []byte
 //go:embed example-server-wheel.json
 var exampleServerWheelJSON []byte
 
+//go:embed example-server-binary.json
+var exampleServerBinaryJSON []byte
+
 const (
 	defaultBaseURL = "http://localhost:8080"
 )
@@ -64,11 +67,33 @@ type Metadata struct {
 }
 
 type ServersResponse struct {
+	Servers  []ServerWrapper `json:"servers"`
+	Metadata Metadata        `json:"metadata,omitempty"`
+}
+
+type DetailedServersResponse struct {
+	Servers  []ServerDetailWrapper `json:"servers"`
+	Metadata Metadata              `json:"metadata,omitempty"`
+}
+
+// New wrapper types for the API format
+type ServerWrapper struct {
+	Server       Server                 `json:"server"`
+	RegistryMeta map[string]interface{} `json:"x-io.modelcontextprotocol.registry,omitempty"`
+}
+
+type ServerDetailWrapper struct {
+	Server       ServerDetail           `json:"server"`
+	RegistryMeta map[string]interface{} `json:"x-io.modelcontextprotocol.registry,omitempty"`
+}
+
+// Legacy response types for backward compatibility
+type LegacyServersResponse struct {
 	Servers  []Server `json:"servers"`
 	Metadata Metadata `json:"metadata,omitempty"`
 }
 
-type DetailedServersResponse struct {
+type LegacyDetailedServersResponse struct {
 	Servers  []ServerDetail `json:"servers"`
 	Metadata Metadata       `json:"metadata,omitempty"`
 }
@@ -113,6 +138,7 @@ type Package struct {
 	Name                 string          `json:"name"`
 	Version              string          `json:"version"`
 	WheelURL             string          `json:"wheel_url,omitempty"`
+	BinaryURL            string          `json:"binary_url,omitempty"`
 	RuntimeHint          string          `json:"runtime_hint,omitempty"`
 	RuntimeArguments     []Argument      `json:"runtime_arguments,omitempty"`
 	PackageArguments     []Argument      `json:"package_arguments,omitempty"`
@@ -134,6 +160,12 @@ type ServerDetail struct {
 type PublishResponse struct {
 	Message string `json:"message"`
 	ID      string `json:"id"`
+}
+
+// PublishRequest represents the request format for the /v0/publish endpoint
+type PublishRequest struct {
+	Server     ServerDetail           `json:"server"`
+	XPublisher map[string]interface{} `json:"x-publisher,omitempty"`
 }
 
 type MCPXClient struct {
@@ -249,13 +281,58 @@ func (c *MCPXClient) ListServers(cursor string, limit int, jsonOutput bool, deta
 	}
 
 	if resp.StatusCode == 200 {
-		var serversResp ServersResponse
-		if err := json.Unmarshal(body, &serversResp); err != nil {
+		// First try to unmarshal and check what format we have
+		var rawResponse map[string]interface{}
+		if err := json.Unmarshal(body, &rawResponse); err != nil {
 			return fmt.Errorf("failed to parse response: %w", err)
 		}
+
+		var servers []Server
+		var metadata Metadata
+
+		// Check if response has 'servers' array with wrapper format
+		if serversArray, ok := rawResponse["servers"].([]interface{}); ok && len(serversArray) > 0 {
+			if firstServer, ok := serversArray[0].(map[string]interface{}); ok {
+				if _, hasServerField := firstServer["server"]; hasServerField {
+					// New wrapper format
+					var serversResp ServersResponse
+					if err := json.Unmarshal(body, &serversResp); err == nil {
+						for _, wrapper := range serversResp.Servers {
+							server := wrapper.Server
+							// Extract ID from registry metadata if not in server
+							if server.ID == "" {
+								if wrapper.RegistryMeta != nil {
+									if id, ok := wrapper.RegistryMeta["id"].(string); ok {
+										server.ID = id
+									}
+								}
+							}
+							servers = append(servers, server)
+						}
+						metadata = serversResp.Metadata
+					}
+				} else {
+					// Legacy format
+					var legacyResp LegacyServersResponse
+					if err := json.Unmarshal(body, &legacyResp); err == nil {
+						servers = legacyResp.Servers
+						metadata = legacyResp.Metadata
+					}
+				}
+			}
+		} else {
+			// Fallback: try legacy format
+			var legacyResp LegacyServersResponse
+			if err := json.Unmarshal(body, &legacyResp); err != nil {
+				return fmt.Errorf("failed to parse response: %w", err)
+			}
+			servers = legacyResp.Servers
+			metadata = legacyResp.Metadata
+		}
+
 		if detailed && jsonOutput {
 			var detailedServers []ServerDetail
-			for _, server := range serversResp.Servers {
+			for _, server := range servers {
 				detailResp, err := c.makeRequest("GET", "/v0/servers/"+server.ID, nil, "")
 				if err != nil {
 					return fmt.Errorf("failed to get details for server %s: %w", server.ID, err)
@@ -267,8 +344,21 @@ func (c *MCPXClient) ListServers(cursor string, limit int, jsonOutput bool, deta
 				}
 				if detailResp.StatusCode == 200 {
 					var serverDetail ServerDetail
-					if err := json.Unmarshal(detailBody, &serverDetail); err != nil {
-						return fmt.Errorf("failed to parse detail response for server %s: %w", server.ID, err)
+					// Try new wrapper format first
+					var detailWrapper ServerDetailWrapper
+					if err := json.Unmarshal(detailBody, &detailWrapper); err == nil && (detailWrapper.Server.ID != "" || detailWrapper.RegistryMeta != nil) {
+						serverDetail = detailWrapper.Server
+						// Extract ID from registry metadata if not in server
+						if serverDetail.ID == "" && detailWrapper.RegistryMeta != nil {
+							if id, ok := detailWrapper.RegistryMeta["id"].(string); ok {
+								serverDetail.ID = id
+							}
+						}
+					} else {
+						// Try legacy format
+						if err := json.Unmarshal(detailBody, &serverDetail); err != nil {
+							return fmt.Errorf("failed to parse detail response for server %s: %w", server.ID, err)
+						}
 					}
 					detailedServers = append(detailedServers, serverDetail)
 				} else {
@@ -278,9 +368,9 @@ func (c *MCPXClient) ListServers(cursor string, limit int, jsonOutput bool, deta
 					detailedServers = append(detailedServers, serverDetail)
 				}
 			}
-			detailedResp := DetailedServersResponse{
+			detailedResp := LegacyDetailedServersResponse{
 				Servers:  detailedServers,
-				Metadata: serversResp.Metadata,
+				Metadata: metadata,
 			}
 			prettyJSON, err := json.MarshalIndent(detailedResp, "", "  ")
 			if err != nil {
@@ -288,21 +378,22 @@ func (c *MCPXClient) ListServers(cursor string, limit int, jsonOutput bool, deta
 			}
 			fmt.Println(string(prettyJSON))
 		} else if jsonOutput {
-			prettyJSON, err := json.MarshalIndent(serversResp, "", "  ")
+			// Convert back to legacy format for output
+			legacyResp := LegacyServersResponse{
+				Servers:  servers,
+				Metadata: metadata,
+			}
+			prettyJSON, err := json.MarshalIndent(legacyResp, "", "  ")
 			if err != nil {
 				return fmt.Errorf("failed to format JSON: %w", err)
 			}
 			fmt.Println(string(prettyJSON))
 		} else {
-			var serversResp ServersResponse
-			if err := json.Unmarshal(body, &serversResp); err != nil {
-				return fmt.Errorf("failed to parse response: %w", err)
+			fmt.Printf("Total Servers: %d\n", len(servers))
+			if metadata.NextCursor != "" {
+				fmt.Printf("Next Cursor: %s\n", metadata.NextCursor)
 			}
-			fmt.Printf("Total Servers: %d\n", len(serversResp.Servers))
-			if serversResp.Metadata.NextCursor != "" {
-				fmt.Printf("Next Cursor: %s\n", serversResp.Metadata.NextCursor)
-			}
-			for i, server := range serversResp.Servers {
+			for i, server := range servers {
 				fmt.Printf("\n--- Server %d ---\n", i+1)
 				fmt.Printf("ID: %s\n", server.ID)
 				fmt.Printf("Name: %s\n", server.Name)
@@ -353,21 +444,32 @@ func (c *MCPXClient) GetServer(id string, jsonOutput bool) error {
 	}
 
 	if resp.StatusCode == 200 {
-		if jsonOutput {
-			var serverDetail ServerDetail
+		var serverDetail ServerDetail
+
+		// Try new wrapper format first
+		var detailWrapper ServerDetailWrapper
+		if err := json.Unmarshal(body, &detailWrapper); err == nil && (detailWrapper.Server.ID != "" || detailWrapper.RegistryMeta != nil) {
+			serverDetail = detailWrapper.Server
+			// Extract ID from registry metadata if not in server
+			if serverDetail.ID == "" && detailWrapper.RegistryMeta != nil {
+				if id, ok := detailWrapper.RegistryMeta["id"].(string); ok {
+					serverDetail.ID = id
+				}
+			}
+		} else {
+			// Try legacy format
 			if err := json.Unmarshal(body, &serverDetail); err != nil {
 				return fmt.Errorf("failed to parse response: %w", err)
 			}
+		}
+
+		if jsonOutput {
 			prettyJSON, err := json.MarshalIndent(serverDetail, "", "  ")
 			if err != nil {
 				return fmt.Errorf("failed to format JSON: %w", err)
 			}
 			fmt.Println(string(prettyJSON))
 		} else {
-			var serverDetail ServerDetail
-			if err := json.Unmarshal(body, &serverDetail); err != nil {
-				return fmt.Errorf("failed to parse response: %w", err)
-			}
 			fmt.Printf("ID: %s\n", serverDetail.ID)
 			fmt.Printf("Name: %s\n", serverDetail.Name)
 			fmt.Printf("Description: %s\n", serverDetail.Description)
@@ -388,6 +490,9 @@ func (c *MCPXClient) GetServer(id string, jsonOutput bool) error {
 					fmt.Printf("    Version: %s\n", pkg.Version)
 					if pkg.WheelURL != "" {
 						fmt.Printf("    Wheel URL: %s\n", pkg.WheelURL)
+					}
+					if pkg.BinaryURL != "" {
+						fmt.Printf("    Binary URL: %s\n", pkg.BinaryURL)
 					}
 					if pkg.RuntimeHint != "" {
 						fmt.Printf("    Runtime Hint: %s\n", pkg.RuntimeHint)
@@ -446,13 +551,34 @@ func (c *MCPXClient) PublishServer(serverFile string, token string) error {
 		return fmt.Errorf("failed to read server file: %w", err)
 	}
 
-	var serverDetail ServerDetail
-	if err := json.Unmarshal(data, &serverDetail); err != nil {
-		return fmt.Errorf("invalid JSON in server file: %w", err)
-	}
+	// Try to parse as PublishRequest first (new format)
+	var publishReq PublishRequest
+	if err := json.Unmarshal(data, &publishReq); err == nil && publishReq.Server.Name != "" {
+		// It's a PublishRequest format, check server name for GitHub namespace
+		if strings.HasPrefix(publishReq.Server.Name, "io.github.") && token == "" {
+			return fmt.Errorf("authentication token is required for GitHub namespaced servers (io.github.*)")
+		}
+	} else {
+		// Try to parse as legacy ServerDetail format
+		var serverDetail ServerDetail
+		if err := json.Unmarshal(data, &serverDetail); err != nil {
+			return fmt.Errorf("invalid JSON in server file: %w", err)
+		}
 
-	if strings.HasPrefix(serverDetail.Name, "io.github.") && token == "" {
-		return fmt.Errorf("authentication token is required for GitHub namespaced servers (io.github.*)")
+		if strings.HasPrefix(serverDetail.Name, "io.github.") && token == "" {
+			return fmt.Errorf("authentication token is required for GitHub namespaced servers (io.github.*)")
+		}
+
+		// Convert legacy format to PublishRequest format
+		publishReq = PublishRequest{
+			Server: serverDetail,
+		}
+
+		// Re-marshal as PublishRequest format
+		data, err = json.Marshal(publishReq)
+		if err != nil {
+			return fmt.Errorf("failed to convert to publish format: %w", err)
+		}
 	}
 
 	resp, err := c.makeRequest("POST", "/v0/publish", data, token)
@@ -477,15 +603,22 @@ func (c *MCPXClient) PublishServer(serverFile string, token string) error {
 			fmt.Printf("✅ Success: %s\n", publishResp.Message)
 			fmt.Printf("Server ID: %s\n", publishResp.ID)
 		} else {
-			// If not a PublishResponse, it might be a Server response (200 case)
-			var serverResp Server
-			if err := json.Unmarshal(body, &serverResp); err == nil && serverResp.ID != "" {
+			// Try new wrapper format
+			var serverWrapper ServerDetailWrapper
+			if err := json.Unmarshal(body, &serverWrapper); err == nil && serverWrapper.Server.ID != "" {
 				fmt.Printf("✅ Server published successfully\n")
-				fmt.Printf("Server ID: %s\n", serverResp.ID)
+				fmt.Printf("Server ID: %s\n", serverWrapper.Server.ID)
 			} else {
-				// Fallback: just show the response
-				fmt.Printf("✅ Success\n")
-				fmt.Printf("Response: %s\n", string(body))
+				// Try legacy Server response (200 case)
+				var serverResp Server
+				if err := json.Unmarshal(body, &serverResp); err == nil && serverResp.ID != "" {
+					fmt.Printf("✅ Server published successfully\n")
+					fmt.Printf("Server ID: %s\n", serverResp.ID)
+				} else {
+					// Fallback: just show the response
+					fmt.Printf("✅ Success\n")
+					fmt.Printf("Response: %s\n", string(body))
+				}
 			}
 		}
 	} else {
@@ -541,7 +674,7 @@ func createInteractiveServer() (*ServerDetail, error) {
 	fmt.Println("=== Interactive Server Configuration ===")
 	fmt.Println()
 
-	runtime := promptChoice("Select server runtime:", []string{"node", "python-pypi", "python-wheel"}, "node")
+	runtime := promptChoice("Select server runtime:", []string{"node", "python-pypi", "python-wheel", "binary"}, "node")
 
 	var data []byte
 	switch runtime {
@@ -551,6 +684,8 @@ func createInteractiveServer() (*ServerDetail, error) {
 		data = exampleServerPyPiJSON
 	case "python-wheel":
 		data = exampleServerWheelJSON
+	case "binary":
+		data = exampleServerBinaryJSON
 	}
 
 	var server ServerDetail
@@ -590,6 +725,11 @@ func createInteractiveServer() (*ServerDetail, error) {
 				pkg.Name = promptUser("Wheel package name", pkg.Name)
 				if pkg.WheelURL != "" {
 					pkg.WheelURL = promptUser("Wheel URL", pkg.WheelURL)
+				}
+			case "binary":
+				pkg.Name = promptUser("Binary package name", pkg.Name)
+				if pkg.BinaryURL != "" {
+					pkg.BinaryURL = promptUser("Binary download URL", pkg.BinaryURL)
 				}
 			case "docker":
 				pkg.Name = promptUser("Docker image name", pkg.Name)
@@ -659,7 +799,19 @@ func (c *MCPXClient) PublishServerInteractive(token string) error {
 		return fmt.Errorf("authentication token is required for GitHub namespaced servers (io.github.*)")
 	}
 
-	data, err := json.MarshalIndent(server, "", "  ")
+	// Create PublishRequest wrapper
+	publishReq := PublishRequest{
+		Server: *server,
+		XPublisher: map[string]interface{}{
+			"tool":    "mcpx-cli",
+			"version": version,
+			"build_info": map[string]interface{}{
+				"timestamp": time.Now().Format(time.RFC3339),
+			},
+		},
+	}
+
+	data, err := json.MarshalIndent(publishReq, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal server config: %w", err)
 	}
@@ -739,9 +891,31 @@ func (c *MCPXClient) UpdateServer(serverID, serverFile, token string, jsonOutput
 		return fmt.Errorf("failed to read server file: %w", err)
 	}
 
-	var serverDetail ServerDetail
-	if err := json.Unmarshal(data, &serverDetail); err != nil {
+	// Try to detect if this is a PublishRequest format and unwrap it
+	var rawData map[string]interface{}
+	if err := json.Unmarshal(data, &rawData); err != nil {
 		return fmt.Errorf("invalid JSON in server file: %w", err)
+	}
+
+	var serverDetail ServerDetail
+
+	// Check if this is a PublishRequest format with "server" wrapper
+	if serverData, hasServerWrapper := rawData["server"]; hasServerWrapper {
+		// Unwrap the server object from PublishRequest format
+		serverBytes, err := json.Marshal(serverData)
+		if err != nil {
+			return fmt.Errorf("failed to marshal server data: %w", err)
+		}
+		if err := json.Unmarshal(serverBytes, &serverDetail); err != nil {
+			return fmt.Errorf("invalid server data in PublishRequest: %w", err)
+		}
+		// Use the unwrapped server data
+		data = serverBytes
+	} else {
+		// Direct ServerDetail format
+		if err := json.Unmarshal(data, &serverDetail); err != nil {
+			return fmt.Errorf("invalid JSON in server file: %w", err)
+		}
 	}
 
 	if strings.HasPrefix(serverDetail.Name, "io.github.") && token == "" {
@@ -845,7 +1019,7 @@ func printUsage() {
 	fmt.Println("  update <id> <server.json> [--token] [--json]  Update a server by ID")
 	fmt.Println("  delete <id> [--token] [--json]      Delete a server by ID (token optional)")
 	fmt.Println("  publish <server.json>               Publish a server to the registry")
-	fmt.Println("  publish --interactive               Interactive mode to create and publish a server")
+	fmt.Println("  publish --interactive               Interactive mode to create and publish a server (supports npm, PyPI, wheel, binary)")
 	fmt.Println()
 	fmt.Println("Server List Flags:")
 	fmt.Println("  --cursor string      Pagination cursor")
