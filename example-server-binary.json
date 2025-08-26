@@ -1,6 +1,6 @@
 {
   "server": {
-    "name": "io.github.example/test-server-binary",
+    "name": "example/test-server-binary",
     "description": "A test mcp server with binary distribution",
     "status": "active",
     "repository": {
@@ -117,10 +117,5 @@
         ]
       }
     ]
-  },
-  "x-io.modelcontextprotocol.registry": {
-    "last_updated": "2025-07-20T12:00:00Z",
-    "verification_status": "verified",
-    "download_count": 23
   }
 }

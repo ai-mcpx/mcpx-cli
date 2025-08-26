@@ -1,6 +1,6 @@
 {
   "server": {
-    "name": "io.github.example/test-server-python",
+    "name": "example/test-server-python",
     "description": "A test mcp server in python",
     "status": "active",
     "repository": {
@@ -16,7 +16,7 @@
     "packages": [
       {
         "registry_name": "pypi",
-        "name": "@example/test-server-python",
+        "name": "test-server-python",
         "version": "1.0.0",
         "wheel_url": "https://files.pythonhosted.org/packages/example/test_server_python-1.0.0-py3-none-any.whl",
         "runtime_hint": "python",
@@ -101,10 +101,5 @@
         ]
       }
     ]
-  },
-  "x-io.modelcontextprotocol.registry": {
-    "last_updated": "2025-07-20T12:00:00Z",
-    "verification_status": "verified",
-    "download_count": 156
   }
 }

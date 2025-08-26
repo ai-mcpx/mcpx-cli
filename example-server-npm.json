@@ -1,6 +1,6 @@
 {
   "server": {
-    "name": "io.github.example/test-server-node",
+    "name": "example/test-server-node",
     "description": "A test mcp server in node",
     "status": "active",
     "repository": {
@@ -100,10 +100,5 @@
         ]
       }
     ]
-  },
-  "x-io.modelcontextprotocol.registry": {
-    "last_updated": "2025-07-20T12:00:00Z",
-    "verification_status": "verified",
-    "download_count": 89
   }
 }
