@@ -1,5 +1,5 @@
 {
-  "name": "example/test-server-node",
+  "name": "io.modelcontextprotocol.anonymous/test-server-node",
   "description": "A test mcp server in node",
   "status": "active",
   "repository": {

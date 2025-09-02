@@ -1,5 +1,5 @@
 {
-  "name": "example/test-server-wheel",
+  "name": "io.modelcontextprotocol.anonymous/test-server-wheel",
   "description": "A test mcp server with wheel package distribution",
   "status": "active",
   "repository": {
