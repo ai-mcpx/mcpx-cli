@@ -468,7 +468,7 @@ func (c *MCPXClient) ListServers(cursor string, limit int, jsonOutput bool, deta
 		if serversArray, ok := rawResponse["servers"].([]interface{}); ok && len(serversArray) > 0 {
 			if firstServer, ok := serversArray[0].(map[string]interface{}); ok {
 				if _, hasServerField := firstServer["server"]; hasServerField {
-					// New wrapper format
+					// New wrapper format: {"servers": [{"server": {...}, "x-io.modelcontextprotocol.registry": {...}}]}
 					var serversResp ServersResponse
 					if err := json.Unmarshal(body, &serversResp); err == nil {
 						for _, wrapper := range serversResp.Servers {
@@ -486,16 +486,28 @@ func (c *MCPXClient) ListServers(cursor string, limit int, jsonOutput bool, deta
 						metadata = serversResp.Metadata
 					}
 				} else {
-					// Legacy format
+					// Legacy format: {"servers": [{"name": "...", "_meta": {...} OR "id": "..."}]}
 					var legacyResp LegacyServersResponse
 					if err := json.Unmarshal(body, &legacyResp); err == nil {
+						// Extract IDs from _meta.io.modelcontextprotocol.registry for each server
+						for i, serverInterface := range serversArray {
+							if serverMap, ok := serverInterface.(map[string]interface{}); ok {
+								if meta, ok := serverMap["_meta"].(map[string]interface{}); ok {
+									if registry, ok := meta["io.modelcontextprotocol.registry"].(map[string]interface{}); ok {
+										if id, ok := registry["id"].(string); ok && i < len(legacyResp.Servers) {
+											legacyResp.Servers[i].ID = id
+										}
+									}
+								}
+							}
+						}
 						servers = legacyResp.Servers
 						metadata = legacyResp.Metadata
 					}
 				}
 			}
 		} else {
-			// Fallback: try legacy format
+			// Fallback: try simple legacy format without servers array inspection
 			var legacyResp LegacyServersResponse
 			if err := json.Unmarshal(body, &legacyResp); err != nil {
 				return fmt.Errorf("failed to parse response: %w", err)
@@ -725,36 +737,18 @@ func (c *MCPXClient) PublishServer(serverFile string, token string) error {
 		return fmt.Errorf("failed to read server file: %w", err)
 	}
 
-	// Try to parse as PublishRequest first (new format)
-	var publishReq PublishRequest
-	if err := json.Unmarshal(data, &publishReq); err == nil && publishReq.Server.Name != "" {
-		// It's a PublishRequest format, check server name for GitHub namespace
-		if strings.HasPrefix(publishReq.Server.Name, "io.github.") && token == "" {
-			return fmt.Errorf("authentication token is required for GitHub namespaced servers (io.github.*)")
-		}
-	} else {
-		// Try to parse as legacy ServerDetail format
-		var serverDetail ServerDetail
-		if err := json.Unmarshal(data, &serverDetail); err != nil {
-			return fmt.Errorf("invalid JSON in server file: %w", err)
-		}
-
-		if strings.HasPrefix(serverDetail.Name, "io.github.") && token == "" {
-			return fmt.Errorf("authentication token is required for GitHub namespaced servers (io.github.*)")
-		}
-
-		// Convert legacy format to PublishRequest format
-		publishReq = PublishRequest{
-			Server: serverDetail,
-		}
-
-		// Re-marshal as PublishRequest format
-		data, err = json.Marshal(publishReq)
-		if err != nil {
-			return fmt.Errorf("failed to convert to publish format: %w", err)
-		}
+	// Parse as ServerDetail directly (the API expects this format)
+	var serverDetail ServerDetail
+	if err := json.Unmarshal(data, &serverDetail); err != nil {
+		return fmt.Errorf("invalid JSON in server file: %w", err)
 	}
 
+	// Check if GitHub namespace requires authentication
+	if strings.HasPrefix(serverDetail.Name, "io.github.") && token == "" {
+		return fmt.Errorf("authentication token is required for GitHub namespaced servers (io.github.*)")
+	}
+
+	// Send the server data directly as expected by the API
 	resp, err := c.makeRequest("POST", "/v0/publish", data, token)
 	if err != nil {
 		return fmt.Errorf("publish request failed: %w", err)

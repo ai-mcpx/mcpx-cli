@@ -42,50 +42,56 @@ func createMockServer() *httptest.Server {
 	// Servers list endpoint
 	mux.HandleFunc("/v0/servers", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "GET" {
-			// Mock server list
-			servers := []ServerWrapper{
-				{
-					Server: Server{
-						ID:          "test-server-1",
-						Name:        "io.test/server1",
-						Description: "Test server 1",
-						Status:      "active",
-						Repository: Repository{
-							URL:    "https://github.com/test/server1",
-							Source: "github",
-							ID:     "test/server1",
+			// Mock server list with legacy format that matches real API response
+			// This matches the actual mcpx registry format with _meta structure
+			response := map[string]interface{}{
+				"servers": []map[string]interface{}{
+					{
+						"name":        "io.test/server1",
+						"description": "Test server 1",
+						"status":      "active",
+						"repository": map[string]interface{}{
+							"url":    "https://github.com/test/server1",
+							"source": "github",
+							"id":     "test/server1",
 						},
-						VersionDetail: VersionDetail{
-							Version:     "1.0.0",
-							ReleaseDate: "2023-01-01T00:00:00Z",
-							IsLatest:    true,
+						"version_detail": map[string]interface{}{
+							"version":      "1.0.0",
+							"release_date": "2023-01-01T00:00:00Z",
+							"is_latest":    true,
 						},
-					},
-				},
-				{
-					Server: Server{
-						ID:          "test-server-2",
-						Name:        "io.test/server2",
-						Description: "Test server 2",
-						Status:      "active",
-						Repository: Repository{
-							URL:    "https://github.com/test/server2",
-							Source: "github",
-							ID:     "test/server2",
-						},
-						VersionDetail: VersionDetail{
-							Version:     "2.0.0",
-							ReleaseDate: "2023-02-01T00:00:00Z",
-							IsLatest:    true,
+						"_meta": map[string]interface{}{
+							"io.modelcontextprotocol.registry": map[string]interface{}{
+								"id":           "58031f85-792f-4c22-9d76-b4dd01e287aa",
+								"published_at": "2023-01-01T00:00:00Z",
+								"updated_at":   "2023-01-01T00:00:00Z",
+								"is_latest":    true,
+							},
 						},
 					},
-				},
-			}
-			response := ServersResponse{
-				Servers: servers,
-				Metadata: Metadata{
-					Count: 2,
-					Total: 2,
+					{
+						"name":        "io.test/server2",
+						"description": "Test server 2",
+						"status":      "active",
+						"repository": map[string]interface{}{
+							"url":    "https://github.com/test/server2",
+							"source": "github",
+							"id":     "test/server2",
+						},
+						"version_detail": map[string]interface{}{
+							"version":      "2.0.0",
+							"release_date": "2023-02-01T00:00:00Z",
+							"is_latest":    true,
+						},
+						"_meta": map[string]interface{}{
+							"io.modelcontextprotocol.registry": map[string]interface{}{
+								"id":           "69142f85-792f-4c22-9d76-b4dd01e287bb",
+								"published_at": "2023-02-01T00:00:00Z",
+								"updated_at":   "2023-02-01T00:00:00Z",
+								"is_latest":    true,
+							},
+						},
+					},
 				},
 			}
 			_ = json.NewEncoder(w).Encode(response)
@@ -790,5 +796,124 @@ func BenchmarkAuthConfigLoad(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_, _ = client.loadAuthConfig()
+	}
+}
+
+func TestMetaIDExtraction(t *testing.T) {
+	// Test ID extraction from RegistryMeta structure
+	tests := []struct {
+		name          string
+		registryMeta  map[string]interface{}
+		expectedID    string
+		shouldExtract bool
+	}{
+		{
+			name: "valid RegistryMeta with ID",
+			registryMeta: map[string]interface{}{
+				"id":           "58031f85-792f-4c22-9d76-b4dd01e287aa",
+				"published_at": "2023-01-01T00:00:00Z",
+				"updated_at":   "2023-01-01T00:00:00Z",
+				"is_latest":    true,
+			},
+			expectedID:    "58031f85-792f-4c22-9d76-b4dd01e287aa",
+			shouldExtract: true,
+		},
+		{
+			name:          "nil RegistryMeta",
+			registryMeta:  nil,
+			expectedID:    "",
+			shouldExtract: false,
+		},
+		{
+			name: "RegistryMeta missing ID",
+			registryMeta: map[string]interface{}{
+				"published_at": "2023-01-01T00:00:00Z",
+				"updated_at":   "2023-01-01T00:00:00Z",
+				"is_latest":    true,
+			},
+			expectedID:    "",
+			shouldExtract: false,
+		},
+		{
+			name: "RegistryMeta with non-string ID",
+			registryMeta: map[string]interface{}{
+				"id":           12345,
+				"published_at": "2023-01-01T00:00:00Z",
+			},
+			expectedID:    "",
+			shouldExtract: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a server wrapper with the test registry meta
+			wrapper := ServerWrapper{
+				Server: Server{
+					ID:   "original-id",
+					Name: "test-server",
+				},
+				RegistryMeta: tt.registryMeta,
+			}
+
+			// Extract ID from RegistryMeta structure (this simulates the logic in main.go)
+			extractedID := ""
+			if wrapper.RegistryMeta != nil {
+				if id, ok := wrapper.RegistryMeta["id"].(string); ok {
+					extractedID = id
+				}
+			}
+
+			if tt.shouldExtract {
+				if extractedID != tt.expectedID {
+					t.Errorf("Expected extracted ID %q, got %q", tt.expectedID, extractedID)
+				}
+			} else {
+				if extractedID != "" {
+					t.Errorf("Expected no ID extraction, but got %q", extractedID)
+				}
+			}
+		})
+	}
+}
+
+func TestListServersWithMetaIDs(t *testing.T) {
+	mockServer := createMockServer()
+	defer mockServer.Close()
+
+	client := NewMCPXClient(mockServer.URL)
+
+	// Capture stdout to verify ID display
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	err := client.ListServers("", 10, false, false)
+	if err != nil {
+		t.Fatalf("ListServers() error = %v", err)
+	}
+
+	_ = w.Close()
+	os.Stdout = oldStdout
+
+	out, _ := io.ReadAll(r)
+	output := string(out)
+
+	// Verify that registry IDs are displayed instead of empty IDs
+	if strings.Contains(output, "ID: 58031f85-792f-4c22-9d76-b4dd01e287aa") {
+		t.Logf("Successfully displayed registry ID from _meta structure")
+	} else {
+		t.Errorf("Expected to see registry ID 58031f85-792f-4c22-9d76-b4dd01e287aa in output, got: %s", output)
+	}
+
+	if strings.Contains(output, "ID: 69142f85-792f-4c22-9d76-b4dd01e287bb") {
+		t.Logf("Successfully displayed second registry ID from _meta structure")
+	} else {
+		t.Errorf("Expected to see registry ID 69142f85-792f-4c22-9d76-b4dd01e287bb in output, got: %s", output)
+	}
+
+	// Ensure we don't see the fallback test-server IDs
+	if strings.Contains(output, "ID: test-server-1") || strings.Contains(output, "ID: test-server-2") {
+		t.Errorf("Should not see fallback test-server IDs when _meta IDs are available")
 	}
 }
