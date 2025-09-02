@@ -47,7 +47,7 @@
         ]
       },
       {
-        "registry_name": "docker",
+        "registry_name": "oci",
         "name": "example/test-server-node",
         "version": "1.0.0",
         "runtime_hint": "docker",

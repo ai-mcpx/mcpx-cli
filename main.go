@@ -30,9 +30,31 @@ var exampleServerBinaryJSON []byte
 
 const (
 	defaultBaseURL = "http://localhost:8080"
+	configFileName = ".mcpx-cli-config.json"
+
+	// Authentication methods (matching backend)
+	AuthMethodGitHubOAuth = "github-oauth"
+	AuthMethodGitHubOIDC  = "github-oidc"
+	AuthMethodAnonymous   = "anonymous"
+	AuthMethodDNS         = "dns"
+	AuthMethodHTTP        = "http"
 )
 
 var version = "dev"
+
+// Auth configuration structure
+type AuthConfig struct {
+	Token     string `json:"token"`
+	Method    string `json:"method"`
+	Domain    string `json:"domain,omitempty"`
+	ExpiresAt int64  `json:"expires_at,omitempty"`
+}
+
+// Token response from auth endpoints
+type TokenResponse struct {
+	Token     string `json:"token"`
+	ExpiresAt int64  `json:"expires_at,omitempty"`
+}
 
 type HealthResponse struct {
 	Status         string `json:"status"`
@@ -180,8 +202,67 @@ func NewMCPXClient(baseURL string) *MCPXClient {
 
 	return &MCPXClient{
 		baseURL:    strings.TrimSuffix(baseURL, "/"),
-		httpClient: &http.Client{},
+		httpClient: &http.Client{Timeout: 30 * time.Second},
 	}
+}
+
+// Authentication helper methods
+func (c *MCPXClient) saveAuthConfig(config AuthConfig) error {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to get home directory: %w", err)
+	}
+
+	configPath := fmt.Sprintf("%s/%s", homeDir, configFileName)
+	data, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal config: %w", err)
+	}
+
+	return os.WriteFile(configPath, data, 0600)
+}
+
+func (c *MCPXClient) loadAuthConfig() (AuthConfig, error) {
+	var config AuthConfig
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return config, fmt.Errorf("failed to get home directory: %w", err)
+	}
+
+	configPath := fmt.Sprintf("%s/%s", homeDir, configFileName)
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return config, nil // No config file is OK
+		}
+		return config, fmt.Errorf("failed to read config: %w", err)
+	}
+
+	err = json.Unmarshal(data, &config)
+	if err != nil {
+		return config, fmt.Errorf("failed to unmarshal config: %w", err)
+	}
+
+	// Check if token is expired
+	if config.ExpiresAt > 0 && time.Now().Unix() > config.ExpiresAt {
+		return AuthConfig{}, nil // Return empty config if expired
+	}
+
+	return config, nil
+}
+
+func (c *MCPXClient) clearAuthConfig() error {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to get home directory: %w", err)
+	}
+
+	configPath := fmt.Sprintf("%s/%s", homeDir, configFileName)
+	if err := os.Remove(configPath); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to remove config file: %w", err)
+	}
+
+	return nil
 }
 
 func (c *MCPXClient) makeRequest(method, endpoint string, body []byte, token string) (*http.Response, error) {
@@ -201,11 +282,92 @@ func (c *MCPXClient) makeRequest(method, endpoint string, body []byte, token str
 		req.Header.Set("Content-Type", "application/json")
 	}
 
+	// Use provided token or auto-load from config
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
+	} else {
+		config, _ := c.loadAuthConfig()
+		if config.Token != "" {
+			req.Header.Set("Authorization", "Bearer "+config.Token)
+		}
 	}
 
+	req.Header.Set("User-Agent", "mcpx-cli/1.0")
+
 	return c.httpClient.Do(req)
+}
+
+// Authentication commands
+func (c *MCPXClient) login(authMethod string) error {
+	switch authMethod {
+	case AuthMethodGitHubOAuth:
+		return c.loginGitHubOAuth()
+	case AuthMethodGitHubOIDC:
+		return c.loginGitHubOIDC()
+	case AuthMethodAnonymous:
+		return c.loginAnonymous()
+	default:
+		return fmt.Errorf("unsupported authentication method: %s", authMethod)
+	}
+}
+
+func (c *MCPXClient) loginGitHubOAuth() error {
+	// Implement GitHub OAuth flow
+	fmt.Println("GitHub OAuth authentication not yet implemented")
+	return nil
+}
+
+func (c *MCPXClient) loginGitHubOIDC() error {
+	// Implement GitHub OIDC flow
+	fmt.Println("GitHub OIDC authentication not yet implemented")
+	return nil
+}
+
+func (c *MCPXClient) loginAnonymous() error {
+	resp, err := c.makeRequest("POST", "/api/auth/anonymous", nil, "")
+	if err != nil {
+		return fmt.Errorf("failed to authenticate: %w", err)
+	}
+	defer func(Body io.ReadCloser) {
+		_ = Body.Close()
+	}(resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("authentication failed with status: %d", resp.StatusCode)
+	}
+
+	var tokenResp TokenResponse
+	if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
+		return fmt.Errorf("failed to decode token response: %w", err)
+	}
+
+	// Use provided expiration or default to 1 hour from now
+	expiresAt := tokenResp.ExpiresAt
+	if expiresAt == 0 {
+		expiresAt = time.Now().Add(time.Hour).Unix()
+	}
+
+	config := AuthConfig{
+		Method:    AuthMethodAnonymous,
+		Token:     tokenResp.Token,
+		ExpiresAt: expiresAt,
+	}
+
+	if err := c.saveAuthConfig(config); err != nil {
+		return fmt.Errorf("failed to save auth config: %w", err)
+	}
+
+	fmt.Println("Successfully authenticated as anonymous user")
+	return nil
+}
+
+func (c *MCPXClient) logout() error {
+	if err := c.clearAuthConfig(); err != nil {
+		return fmt.Errorf("failed to clear authentication: %w", err)
+	}
+
+	fmt.Println("Successfully logged out")
+	return nil
 }
 
 func (c *MCPXClient) Health() error {
@@ -1013,6 +1175,8 @@ func printUsage() {
 	fmt.Println("Commands:")
 	fmt.Println("  help                                Show this help message")
 	fmt.Println("  version                             Show version information")
+	fmt.Println("  login [--method]                    Login with specified method (anonymous, github-oauth, github-oidc)")
+	fmt.Println("  logout                              Logout and clear stored credentials")
 	fmt.Println("  health                              Check api health status")
 	fmt.Println("  servers                             List all servers")
 	fmt.Println("  server <id> [--json]                Get server details by ID")
@@ -1020,6 +1184,9 @@ func printUsage() {
 	fmt.Println("  delete <id> [--token] [--json]      Delete a server by ID (token optional)")
 	fmt.Println("  publish <server.json>               Publish a server to the registry")
 	fmt.Println("  publish --interactive               Interactive mode to create and publish a server (supports npm, PyPI, wheel, binary)")
+	fmt.Println()
+	fmt.Println("Authentication Flags:")
+	fmt.Println("  --method string      Authentication method (anonymous, github-oauth, github-oidc) (default: anonymous)")
 	fmt.Println()
 	fmt.Println("Server List Flags:")
 	fmt.Println("  --cursor string      Pagination cursor")
@@ -1043,6 +1210,9 @@ func printUsage() {
 	fmt.Println("  --json               Output result in JSON format")
 	fmt.Println()
 	fmt.Println("Examples:")
+	fmt.Println("  mcpx-cli login --method anonymous                           # Login with anonymous authentication")
+	fmt.Println("  mcpx-cli login --method github-oauth                       # Login with GitHub OAuth")
+	fmt.Println("  mcpx-cli logout                                             # Logout and clear credentials")
 	fmt.Println("  mcpx-cli health")
 	fmt.Println("  mcpx-cli servers --limit 10")
 	fmt.Println("  mcpx-cli servers --json --detailed")
@@ -1105,6 +1275,20 @@ func main() {
 	switch command {
 	case "help", "--help", "-h":
 		printUsage()
+	case "login":
+		var authMethod string
+		loginFlags := flag.NewFlagSet("login", flag.ExitOnError)
+		loginFlags.StringVar(&authMethod, "method", AuthMethodAnonymous, "Authentication method (anonymous, github-oauth, github-oidc)")
+		if err := loginFlags.Parse(args[1:]); err != nil {
+			log.Fatalf("Error parsing login flags: %v", err)
+		}
+		if err := client.login(authMethod); err != nil {
+			log.Fatalf("Login failed: %v", err)
+		}
+	case "logout":
+		if err := client.logout(); err != nil {
+			log.Fatalf("Logout failed: %v", err)
+		}
 	case "health":
 		if err := client.Health(); err != nil {
 			log.Fatalf("Health check failed: %v", err)

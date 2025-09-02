@@ -1,28 +1,43 @@
 # mcpx-cli
 
-A command-line interface for interacting with the mcpx registry api. This CLI provides easy access to all the core mcpx api endpoints for managing MCP servers.
+A command-line interface for interacting with the mcpx registry api. This CLI provides easy access to all the core mcpx api endpoints for managing MCP servers with enhanced authentication support.
 
 ## Features
 
+- **Authentication System**: Multiple authentication methods including GitHub OAuth, GitHub OIDC, and anonymous access
+- **Automatic Token Management**: Secure credential storage and automatic token refresh
 - **Health Check**: Verify api connectivity and status
 - **Server Listing**: Browse available MCP servers with pagination
 - **Server Details**: Get comprehensive information about specific servers
 - **Detailed Server Information**: Retrieve complete server data including packages and remotes
-- **Server Publishing**: Publish new MCP servers to the registry (requires authentication)
-- **Server Updates**: Update existing MCP servers in the registry (requires authentication)
-- **Server Deletion**: Delete servers from the registry (requires authentication)
+- **Server Publishing**: Publish new MCP servers to the registry
+- **Server Updates**: Update existing MCP servers in the registry
+- **Server Deletion**: Delete servers from the registry
 - **Interactive Mode**: Create server configurations interactively with Node.js and Python templates
 - **JSON Output**: All responses are formatted for easy reading with optional detailed information
 - **Configurable Base URL**: Target different mcpx registry instances
 
+## Authentication Methods
+
+The mcpx-cli supports multiple authentication methods that match the backend capabilities:
+
+- **Anonymous**: Basic access without GitHub authentication
+- **GitHub OAuth**: Full GitHub OAuth flow for authenticated access
+- **GitHub OIDC**: GitHub OpenID Connect for enterprise environments
+- **DNS**: Domain-based authentication (future implementation)
+- **HTTP**: HTTP-based authentication (future implementation)
+
 ## API Endpoints Supported
 
+- `POST /api/auth/anonymous` - Anonymous authentication
+- `POST /api/auth/github/oauth` - GitHub OAuth authentication
+- `POST /api/auth/github/oidc` - GitHub OIDC authentication
 - `GET /v0/health` - Health check and status
 - `GET /v0/servers` - List servers with basic information and optional pagination
 - `GET /v0/servers/{id}` - Get detailed server information including packages and remotes
-- `POST /v0/publish` - Publish a new server (requires authentication)
-- `PUT /v0/servers/{id}` - Update an existing server (requires authentication)
-- `DELETE /v0/servers/{id}` - Delete a server from the registry (requires authentication)
+- `POST /v0/publish` - Publish a new server
+- `PUT /v0/servers/{id}` - Update an existing server
+- `DELETE /v0/servers/{id}` - Delete a server from the registry
 
 **Note**: The API follows a common pattern where the list endpoint (`/v0/servers`) returns basic server metadata for efficient browsing, while the detail endpoint (`/v0/servers/{id}`) provides complete information including packages and remotes. The CLI's `--detailed` flag bridges this gap by automatically fetching detailed information for all servers in a list.
 
@@ -66,6 +81,39 @@ mcpx-cli [global flags] <command> [command flags]
 - `--version`: Show version information
 
 ### Commands
+
+#### Authentication
+
+##### Login
+
+Authenticate with the mcpx registry using various methods:
+
+```bash
+# Login with anonymous authentication (default)
+mcpx-cli login --method anonymous
+
+# Login with GitHub OAuth
+mcpx-cli login --method github-oauth
+
+# Login with GitHub OIDC
+mcpx-cli login --method github-oidc
+
+# Default to anonymous if no method specified
+mcpx-cli login
+```
+
+**Authentication Flags:**
+- `--method string`: Authentication method (anonymous, github-oauth, github-oidc) (default: anonymous)
+
+Authentication credentials are automatically saved to `~/.mcpx-cli-config.json` and used for subsequent API calls.
+
+##### Logout
+
+Clear stored authentication credentials:
+
+```bash
+mcpx-cli logout
+```
 
 #### Version Information
 
@@ -335,14 +383,14 @@ Example JSON output (with `--json` flag):
 
 #### Delete Server
 
-Delete a server from the registry. Authentication may be required depending on the server and registry configuration.
+Delete a server from the registry. Authentication is automatically handled through stored credentials or explicit tokens.
 
 ```bash
-# With authentication token
-mcpx-cli delete <server-id> --token <auth-token>
-
-# Without authentication token (if supported by registry)
+# Using stored authentication (recommended)
 mcpx-cli delete <server-id>
+
+# Using explicit token (legacy method)
+mcpx-cli delete <server-id> --token <auth-token>
 
 # With JSON output
 mcpx-cli delete <server-id> --json
@@ -353,27 +401,30 @@ mcpx-cli delete <server-id> --token <auth-token> --json
 
 Example:
 ```bash
-# Delete a server with authentication token
-mcpx-cli delete a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 --token ghp_your_github_token_here
+# Login first (authentication is stored automatically)
+mcpx-cli login --method github-oauth
 
-# Delete a server without authentication (if supported)
+# Delete using stored authentication
 mcpx-cli delete a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1
 
-# Skip interactive confirmation
-mcpx-cli delete a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 --token ghp_your_token --confirm
+# Alternative: provide token explicitly
+mcpx-cli delete a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 --token ghp_your_github_token_here
 
 # Output result in JSON format
 mcpx-cli delete a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 --json
+
+# For anonymous deletion (if supported by registry policy)
+mcpx-cli login --method anonymous
+mcpx-cli delete a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1
 ```
 
 **Flags:**
-- `--token string`: Authentication token (optional)
+- `--token string`: Authentication token (optional if using stored authentication)
 - `--json`: Output result in JSON format
-- `--confirm`: Skip interactive confirmation prompt
 
 **Important Notes:**
 - **Irreversible operation**: Deleted servers cannot be recovered
-- **Authentication**: Token may be required depending on the server and registry configuration
+- **Authentication**: Automatically uses stored credentials or provided token
 - **Permission check**: You can only delete servers you have permission to modify
 - **Confirmation prompt**: By default, the CLI will ask for confirmation before deletion
 
@@ -397,14 +448,14 @@ JSON output example:
 
 #### Update Server
 
-Update an existing MCP server in the registry. Authentication may be required depending on the server and registry configuration.
+Update an existing MCP server in the registry. Authentication is automatically handled through stored credentials or explicit tokens.
 
 ```bash
-# Update with authentication token
-mcpx-cli update <server-id> <server.json> --token <auth-token>
-
-# Update without authentication token (if supported by registry)
+# Using stored authentication (recommended)
 mcpx-cli update <server-id> <server.json>
+
+# Using explicit token (legacy method)
+mcpx-cli update <server-id> <server.json> --token <auth-token>
 
 # With JSON output
 mcpx-cli update <server-id> <server.json> --json
@@ -415,23 +466,30 @@ mcpx-cli update <server-id> <server.json> --token <auth-token> --json
 
 Example:
 ```bash
-# Update a server with authentication token
-mcpx-cli update a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 updated-server.json --token ghp_your_github_token_here
+# Login first (authentication is stored automatically)
+mcpx-cli login --method github-oauth
 
-# Update a server without authentication (if supported)
+# Update using stored authentication
 mcpx-cli update a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 updated-server.json
+
+# Alternative: provide token explicitly
+mcpx-cli update a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 updated-server.json --token ghp_your_github_token_here
 
 # Output result in JSON format
 mcpx-cli update a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 updated-server.json --json
+
+# For anonymous updates (if supported by registry policy)
+mcpx-cli login --method anonymous
+mcpx-cli update a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 updated-server.json
 ```
 
 **Flags:**
-- `--token string`: Authentication token (optional)
+- `--token string`: Authentication token (optional if using stored authentication)
 - `--json`: Output result in JSON format
 
 **Important Notes:**
 - **Server configuration file**: The JSON file should contain the complete server configuration
-- **Authentication**: Token may be required depending on the server and registry configuration
+- **Authentication**: Automatically uses stored credentials or provided token
 - **Permission check**: You can only update servers you have permission to modify
 - **Validation**: The server configuration will be validated before update
 
@@ -508,22 +566,33 @@ JSON output example:
 
 #### Publish Server
 
-Publish a new MCP server to the registry. The CLI supports two modes:
+Publish a new MCP server to the registry. The CLI supports two modes and automatic authentication:
 
 ##### File-based Publishing
 
 Publish using an existing server configuration file:
 
 ```bash
+# Using stored authentication (recommended)
+mcpx-cli publish <server.json>
+
+# Using explicit token (legacy method)
 mcpx-cli publish <server.json> --token <auth-token>
 ```
 
 Example:
 ```bash
-# For GitHub namespaced servers (token required)
+# Login first (authentication is stored automatically)
+mcpx-cli login --method github-oauth
+
+# Then publish (uses stored authentication)
+mcpx-cli publish example-server.json
+
+# Alternative: provide token explicitly (for GitHub namespaced servers)
 mcpx-cli publish example-server.json --token ghp_your_github_token_here
 
-# For other namespaces (token optional)
+# For non-GitHub namespaces with anonymous authentication
+mcpx-cli login --method anonymous
 mcpx-cli publish example-server.json
 ```
 
@@ -532,15 +601,26 @@ mcpx-cli publish example-server.json
 Create and publish a server configuration interactively:
 
 ```bash
+# Using stored authentication (recommended)
+mcpx-cli publish --interactive
+
+# Using explicit token (legacy method)
 mcpx-cli publish --interactive --token <auth-token>
 ```
 
 Examples:
 ```bash
-# For GitHub namespaced servers (token required)
+# Login first with appropriate method
+mcpx-cli login --method github-oauth
+
+# Then use interactive mode (uses stored authentication)
+mcpx-cli publish --interactive
+
+# Alternative: provide token explicitly for GitHub namespaced servers
 mcpx-cli publish --interactive --token ghp_your_github_token_here
 
-# For other namespaces (token optional)
+# For non-GitHub projects with anonymous authentication
+mcpx-cli login --method anonymous
 mcpx-cli publish --interactive
 ```
 
@@ -722,42 +802,99 @@ make demo-all
 
 ## Examples
 
+### Authentication Workflows
+
+#### GitHub-based Project Workflow
+
+```bash
+# 1. Login with GitHub OAuth
+mcpx-cli login --method github-oauth
+
+# 2. Check login status
+mcpx-cli health
+
+# 3. Publish/update/delete operations use stored authentication automatically
+mcpx-cli publish example-server.json
+mcpx-cli update server-id updated-server.json
+mcpx-cli delete server-id
+
+# 4. Logout when done
+mcpx-cli logout
+```
+
+#### Anonymous Access Workflow
+
+```bash
+# 1. Login anonymously
+mcpx-cli login --method anonymous
+
+# 2. Browse and interact with the registry
+mcpx-cli servers --json --detailed
+mcpx-cli server server-id
+
+# 3. Publish non-GitHub servers (if allowed by registry policy)
+mcpx-cli publish example-server.json
+
+# 4. Logout when done
+mcpx-cli logout
+```
+
+#### Mixed Authentication Workflow
+
+```bash
+# 1. Start with anonymous access for browsing
+mcpx-cli login --method anonymous
+mcpx-cli servers --limit 10
+
+# 2. Switch to GitHub authentication for publishing
+mcpx-cli login --method github-oauth
+mcpx-cli publish --interactive
+
+# 3. Continue with authenticated operations
+mcpx-cli update server-id updated-server.json
+```
+
 ### Complete Workflow
 
 ```bash
 # 0. Check CLI version
 mcpx-cli --version
 
-# 1. Check api health
+# 1. Authenticate (stored for subsequent commands)
+mcpx-cli login --method github-oauth
+
+# 2. Check api health
 mcpx-cli health
 
-# 2. List available servers
+# 3. List available servers
 mcpx-cli servers --limit 5
 
-# 3. List servers in JSON format (for programmatic processing)
+# 4. List servers in JSON format (for programmatic processing)
 mcpx-cli servers --json --limit 10
 
-# 3b. List servers with complete details including packages and remotes
+# 5. List servers with complete details including packages and remotes
 mcpx-cli servers --json --detailed --limit 5
 
-# 4. Get details for a specific server
+# 6. Get details for a specific server
 mcpx-cli server a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1
 
-# 4b. Get server details in JSON format (for programmatic processing)
+# 7. Get server details in JSON format (for programmatic processing)
 mcpx-cli server a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 --json
 
-# 5. Publish a new server (file-based)
-mcpx-cli publish example-server.json --token ghp_your_token_here  # GitHub projects
-mcpx-cli publish example-server.json  # Non-GitHub projects
+# 8. Publish a new server (file-based) - uses stored authentication
+mcpx-cli publish example-server.json
 
-# 6. Publish a new server (interactive mode)
-mcpx-cli publish --interactive --token ghp_your_token_here  # GitHub projects
-mcpx-cli publish --interactive  # Non-GitHub projects
+# 9. Publish a new server (interactive mode) - uses stored authentication
+mcpx-cli publish --interactive
 
-# 7. Delete a server
-mcpx-cli delete a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 --token ghp_your_token_here  # With authentication
-mcpx-cli delete a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1  # Without authentication (if supported)
-mcpx-cli delete a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 --json  # JSON output for automation
+# 10. Update an existing server - uses stored authentication
+mcpx-cli update a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 updated-server.json
+
+# 11. Delete a server - uses stored authentication
+mcpx-cli delete a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1
+
+# 12. Logout when done
+mcpx-cli logout
 ```
 
 ### JSON Output for Automation
@@ -827,6 +964,52 @@ mcpx-cli --base-url=https://staging-registry.example.com servers
 # Production environment
 mcpx-cli --base-url=https://registry.modelcontextprotocol.io servers
 ```
+
+## Authentication Configuration
+
+### Configuration File
+
+Authentication credentials are automatically stored in `~/.mcpx-cli-config.json` when you use the `login` command. The file structure is:
+
+```json
+{
+  "method": "github-oauth",
+  "token": "gho_xxxxxxxxxxxx",
+  "expires_at": 1693612800
+}
+```
+
+### Security Notes
+
+- **File Permissions**: The configuration file is created with `0600` permissions (readable only by the user)
+- **Token Expiration**: Tokens are automatically checked for expiration before use
+- **Automatic Cleanup**: Expired tokens are automatically removed from the configuration
+- **Manual Cleanup**: Use `mcpx-cli logout` to clear stored credentials
+
+### Supported Authentication Methods
+
+| Method | Description | Use Case |
+|--------|-------------|----------|
+| `anonymous` | Basic anonymous access | Public browsing, non-GitHub servers |
+| `github-oauth` | GitHub OAuth authentication | GitHub-namespaced servers, full access |
+| `github-oidc` | GitHub OIDC authentication | Enterprise environments, CI/CD |
+| `dns` | Domain-based authentication | Future implementation |
+| `http` | HTTP-based authentication | Future implementation |
+
+### Migration from Token-based Authentication
+
+If you were previously using the `--token` flag, you can migrate to the new authentication system:
+
+```bash
+# Old way (still supported)
+mcpx-cli publish server.json --token ghp_your_token_here
+
+# New way (recommended)
+mcpx-cli login --method github-oauth
+mcpx-cli publish server.json
+```
+
+The token-based authentication is still supported for backward compatibility and CI/CD environments where interactive login is not possible.
 
 ## Error Handling
 
