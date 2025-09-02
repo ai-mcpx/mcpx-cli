@@ -52,8 +52,8 @@ type AuthConfig struct {
 
 // Token response from auth endpoints
 type TokenResponse struct {
-	Token     string `json:"token"`
-	ExpiresAt int64  `json:"expires_at,omitempty"`
+	RegistryToken string `json:"registry_token"`
+	ExpiresAt     int64  `json:"expires_at,omitempty"`
 }
 
 type HealthResponse struct {
@@ -324,7 +324,7 @@ func (c *MCPXClient) loginGitHubOIDC() error {
 }
 
 func (c *MCPXClient) loginAnonymous() error {
-	resp, err := c.makeRequest("POST", "/api/auth/anonymous", nil, "")
+	resp, err := c.makeRequest("POST", "/v0/auth/none", nil, "")
 	if err != nil {
 		return fmt.Errorf("failed to authenticate: %w", err)
 	}
@@ -333,12 +333,24 @@ func (c *MCPXClient) loginAnonymous() error {
 	}(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("authentication failed with status: %d", resp.StatusCode)
+		// Read the response body for error details
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("authentication failed with status: %d, response: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	// Read the response body and log it for debugging
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if len(bodyBytes) == 0 {
+		return fmt.Errorf("server returned empty response body")
 	}
 
 	var tokenResp TokenResponse
-	if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
-		return fmt.Errorf("failed to decode token response: %w", err)
+	if err := json.Unmarshal(bodyBytes, &tokenResp); err != nil {
+		return fmt.Errorf("failed to decode token response: %w, response body: %s", err, string(bodyBytes))
 	}
 
 	// Use provided expiration or default to 1 hour from now
@@ -349,7 +361,7 @@ func (c *MCPXClient) loginAnonymous() error {
 
 	config := AuthConfig{
 		Method:    AuthMethodAnonymous,
-		Token:     tokenResp.Token,
+		Token:     tokenResp.RegistryToken,
 		ExpiresAt: expiresAt,
 	}
 

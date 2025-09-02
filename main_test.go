@@ -27,14 +27,14 @@ func createMockServer() *httptest.Server {
 	})
 
 	// Auth endpoints
-	mux.HandleFunc("/api/auth/anonymous", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/v0/auth/none", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "POST" {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
 		response := TokenResponse{
-			Token:     "test-anonymous-token",
-			ExpiresAt: time.Now().Add(time.Hour).Unix(),
+			RegistryToken: "test-anonymous-token",
+			ExpiresAt:     time.Now().Add(time.Hour).Unix(),
 		}
 		_ = json.NewEncoder(w).Encode(response)
 	})
