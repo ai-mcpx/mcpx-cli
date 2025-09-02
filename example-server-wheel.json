@@ -13,9 +13,8 @@
   "packages": [
     {
       "registry_type": "wheel",
-      "identifier": "test_server_wheel",
+      "identifier": "https://github.com/example/test-server-wheel/releases/download/v1.0.0/test_server_wheel-1.0.0-py3-none-any.whl",
       "version": "1.0.0",
-      "wheel_url": "https://github.com/example/test-server-wheel/releases/download/v1.0.0/test_server_wheel-1.0.0-py3-none-any.whl",
       "runtime_hint": "python",
       "runtime_arguments": [
         {
@@ -40,7 +39,7 @@
           "description": "Server port number",
           "format": "number",
           "is_required": false,
-          "default": "8000"
+          "default": "8003"
         }
       ]
     },
@@ -63,7 +62,7 @@
           "name": "-p",
           "value_hint": "port_mapping",
           "description": "Port mapping for the container",
-          "default": "8000:8000",
+          "default": "8003:8000",
           "is_required": false
         }
       ],
@@ -80,7 +79,7 @@
           "description": "Server port number",
           "format": "number",
           "is_required": false,
-          "default": "8000"
+          "default": "8003"
         }
       ]
     }
@@ -88,7 +87,7 @@
   "remotes": [
     {
       "transport_type": "http",
-      "url": "http://localhost:8000",
+      "url": "http://localhost:8003",
       "headers": [
         {
           "name": "Content-Type",

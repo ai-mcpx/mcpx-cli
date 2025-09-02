@@ -39,7 +39,7 @@
           "description": "Server port number",
           "format": "number",
           "is_required": false,
-          "default": "8000"
+          "default": "8001"
         }
       ]
     },
@@ -62,7 +62,7 @@
           "name": "-p",
           "value_hint": "port_mapping",
           "description": "Port mapping for the container",
-          "default": "8000:8000",
+          "default": "8001:8000",
           "is_required": false
         }
       ],
@@ -79,7 +79,7 @@
           "description": "Server port number",
           "format": "number",
           "is_required": false,
-          "default": "8000"
+          "default": "8001"
         }
       ]
     }
@@ -87,7 +87,7 @@
   "remotes": [
     {
       "transport_type": "http",
-      "url": "http://localhost:8000",
+      "url": "http://localhost:8001",
       "headers": [
         {
           "name": "Content-Type",

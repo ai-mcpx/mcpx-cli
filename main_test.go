@@ -917,3 +917,71 @@ func TestListServersWithMetaIDs(t *testing.T) {
 		t.Errorf("Should not see fallback test-server IDs when _meta IDs are available")
 	}
 }
+
+// Test for PyPI and Wheel package publishing
+func TestPublishServerPackageTypes(t *testing.T) {
+	mockServer := createMockServer()
+	defer mockServer.Close()
+
+	client := NewMCPXClient(mockServer.URL)
+
+	tests := []struct {
+		name       string
+		serverJSON []byte
+		wantErr    bool
+	}{
+		{
+			name:       "publish NPM package",
+			serverJSON: exampleServerNPMJSON,
+			wantErr:    false,
+		},
+		{
+			name:       "publish PyPI package",
+			serverJSON: exampleServerPyPiJSON,
+			wantErr:    false,
+		},
+		{
+			name:       "publish Wheel package",
+			serverJSON: exampleServerWheelJSON,
+			wantErr:    false,
+		},
+		{
+			name:       "publish Binary package",
+			serverJSON: exampleServerBinaryJSON,
+			wantErr:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create temp server file
+			serverFile := createTempServerFile(t, tt.serverJSON)
+			defer func(name string) {
+				_ = os.Remove(name)
+			}(serverFile)
+
+			// Capture stdout
+			oldStdout := os.Stdout
+			r, w, _ := os.Pipe()
+			os.Stdout = w
+
+			err := client.PublishServer(serverFile, "")
+
+			_ = w.Close()
+			os.Stdout = oldStdout
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("PublishServer() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if !tt.wantErr {
+				out, _ := io.ReadAll(r)
+				output := string(out)
+				if !strings.Contains(output, "Publish Server") {
+					t.Errorf("Expected output to contain 'Publish Server', got %v", output)
+				}
+			}
+		})
+	}
+}

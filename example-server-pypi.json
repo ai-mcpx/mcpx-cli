@@ -13,9 +13,9 @@
   "packages": [
     {
       "registry_type": "pypi",
+      "registry_base_url": "https://pypi.org",
       "identifier": "test-server-python",
       "version": "1.0.0",
-      "wheel_url": "https://files.pythonhosted.org/packages/example/test_server_python-1.0.0-py3-none-any.whl",
       "runtime_hint": "python",
       "runtime_arguments": [
         {
@@ -40,7 +40,7 @@
           "description": "Server port number",
           "format": "number",
           "is_required": false,
-          "default": "8000"
+          "default": "8002"
         }
       ]
     },
@@ -63,7 +63,7 @@
           "name": "-p",
           "value_hint": "port_mapping",
           "description": "Port mapping for the container",
-          "default": "8000:8000",
+          "default": "8002:8000",
           "is_required": false
         }
       ],
@@ -80,7 +80,7 @@
           "description": "Server port number",
           "format": "number",
           "is_required": false,
-          "default": "8000"
+          "default": "8002"
         }
       ]
     }
@@ -88,7 +88,7 @@
   "remotes": [
     {
       "transport_type": "http",
-      "url": "http://localhost:8000",
+      "url": "http://localhost:8002",
       "headers": [
         {
           "name": "Content-Type",
