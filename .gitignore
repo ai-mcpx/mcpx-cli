@@ -34,3 +34,5 @@ go.work.sum
 # Built CLI binary
 mcpx-cli
 mcpx-cli_*
+
+bin/

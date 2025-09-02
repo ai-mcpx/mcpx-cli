@@ -1211,7 +1211,7 @@ func printUsage() {
 	fmt.Println()
 	fmt.Println("Examples:")
 	fmt.Println("  mcpx-cli login --method anonymous                           # Login with anonymous authentication")
-	fmt.Println("  mcpx-cli login --method github-oauth                       # Login with GitHub OAuth")
+	fmt.Println("  mcpx-cli login --method github-oauth                        # Login with GitHub OAuth")
 	fmt.Println("  mcpx-cli logout                                             # Logout and clear credentials")
 	fmt.Println("  mcpx-cli health")
 	fmt.Println("  mcpx-cli servers --limit 10")
