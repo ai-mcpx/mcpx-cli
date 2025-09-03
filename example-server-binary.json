@@ -16,6 +16,7 @@
       "identifier": "https://github.com/example/test-server-binary/releases/download/v1.0.0/test-server-binary-linux-x64",
       "version": "1.0.0",
       "runtime_hint": "binary",
+      "transport_type": "stdio",
       "runtime_arguments": [
         {
           "type": "number",
@@ -64,6 +65,7 @@
       "identifier": "example/test-server-binary",
       "version": "1.0.0",
       "runtime_hint": "docker",
+      "transport_type": "stdio",
       "runtime_arguments": [
         {
           "type": "named",
@@ -102,7 +104,7 @@
   ],
   "remotes": [
     {
-      "transport_type": "http",
+      "transport_type": "streamable-http",
       "url": "http://localhost:8000",
       "headers": [
         {

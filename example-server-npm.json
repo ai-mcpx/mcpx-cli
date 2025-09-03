@@ -16,6 +16,7 @@
       "identifier": "@example/test-server-node",
       "version": "1.0.0",
       "runtime_hint": "npx",
+      "transport_type": "stdio",
       "runtime_arguments": [
         {
           "type": "string",
@@ -86,7 +87,7 @@
   ],
   "remotes": [
     {
-      "transport_type": "http",
+      "transport_type": "streamable-http",
       "url": "http://localhost:8001",
       "headers": [
         {

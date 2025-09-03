@@ -17,6 +17,7 @@
       "identifier": "test-server-python",
       "version": "1.0.0",
       "runtime_hint": "python",
+      "transport_type": "stdio",
       "runtime_arguments": [
         {
           "type": "string",
@@ -87,7 +88,7 @@
   ],
   "remotes": [
     {
-      "transport_type": "http",
+      "transport_type": "streamable-http",
       "url": "http://localhost:8002",
       "headers": [
         {

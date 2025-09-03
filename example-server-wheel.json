@@ -16,6 +16,7 @@
       "identifier": "https://github.com/example/test-server-wheel/releases/download/v1.0.0/test_server_wheel-1.0.0-py3-none-any.whl",
       "version": "1.0.0",
       "runtime_hint": "python",
+      "transport_type": "stdio",
       "runtime_arguments": [
         {
           "type": "string",
@@ -48,6 +49,7 @@
       "identifier": "example/test-server-wheel",
       "version": "1.0.0",
       "runtime_hint": "docker",
+      "transport_type": "stdio",
       "runtime_arguments": [
         {
           "type": "named",
@@ -86,7 +88,7 @@
   ],
   "remotes": [
     {
-      "transport_type": "http",
+      "transport_type": "streamable-http",
       "url": "http://localhost:8003",
       "headers": [
         {

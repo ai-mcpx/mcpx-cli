@@ -38,6 +38,27 @@ const (
 	AuthMethodAnonymous   = "anonymous"
 	AuthMethodDNS         = "dns"
 	AuthMethodHTTP        = "http"
+
+	// Registry Types - supported package registry types
+	RegistryTypeNPM    = "npm"
+	RegistryTypePyPI   = "pypi"
+	RegistryTypeOCI    = "oci"
+	RegistryTypeNuGet  = "nuget"
+	RegistryTypeMCPB   = "mcpb"
+	RegistryTypeWheel  = "wheel"
+	RegistryTypeBinary = "binary"
+
+	// Transport Types - supported remote transport protocols
+	TransportTypeStreamableHTTP = "streamable-http"
+	TransportTypeSSE            = "sse"
+	TransportTypeStdio          = "stdio"
+
+	// Runtime Hints - supported package runtime hints
+	RuntimeHintNPX    = "npx"
+	RuntimeHintUVX    = "uvx"
+	RuntimeHintDocker = "docker"
+	RuntimeHintDNX    = "dnx"
+	RuntimeHintBinary = "binary"
 )
 
 var version = "dev"
@@ -74,7 +95,7 @@ type VersionDetail struct {
 }
 
 type Server struct {
-	ID            string        `json:"id"`
+	ID            string        `json:"id,omitempty"`
 	Name          string        `json:"name"`
 	Description   string        `json:"description"`
 	Status        string        `json:"status,omitempty"`
@@ -156,12 +177,15 @@ type Argument struct {
 }
 
 type Package struct {
-	RegistryName         string          `json:"registry_name"`
-	Name                 string          `json:"name"`
+	RegistryType         string          `json:"registry_type"`
+	RegistryBaseURL      string          `json:"registry_base_url,omitempty"`
+	Identifier           string          `json:"identifier"`
 	Version              string          `json:"version"`
 	WheelURL             string          `json:"wheel_url,omitempty"`
 	BinaryURL            string          `json:"binary_url,omitempty"`
+	FileSHA256           string          `json:"file_sha256,omitempty"`
 	RuntimeHint          string          `json:"runtime_hint,omitempty"`
+	TransportType        string          `json:"transport_type,omitempty"`
 	RuntimeArguments     []Argument      `json:"runtime_arguments,omitempty"`
 	PackageArguments     []Argument      `json:"package_arguments,omitempty"`
 	EnvironmentVariables []KeyValueInput `json:"environment_variables,omitempty"`
@@ -671,8 +695,8 @@ func (c *MCPXClient) GetServer(id string, jsonOutput bool) error {
 				fmt.Printf("\nPackages:\n")
 				for i, pkg := range serverDetail.Packages {
 					fmt.Printf("  Package %d:\n", i+1)
-					fmt.Printf("    Registry: %s\n", pkg.RegistryName)
-					fmt.Printf("    Name: %s\n", pkg.Name)
+					fmt.Printf("    Registry: %s\n", pkg.RegistryType)
+					fmt.Printf("    Identifier: %s\n", pkg.Identifier)
 					fmt.Printf("    Version: %s\n", pkg.Version)
 					if pkg.WheelURL != "" {
 						fmt.Printf("    Wheel URL: %s\n", pkg.WheelURL)
@@ -879,35 +903,35 @@ func createInteractiveServer() (*ServerDetail, error) {
 		fmt.Println("\n--- Package Information ---")
 		for pkgIndex := range server.Packages {
 			pkg := &server.Packages[pkgIndex]
-			fmt.Printf("\nConfiguring package %d (%s):\n", pkgIndex+1, pkg.RegistryName)
+			fmt.Printf("\nConfiguring package %d (%s):\n", pkgIndex+1, pkg.RegistryType)
 
-			switch pkg.RegistryName {
-			case "npm":
-				pkg.Name = promptUser("NPM package name", pkg.Name)
-			case "pypi":
-				pkg.Name = promptUser("PyPI package name", pkg.Name)
+			switch pkg.RegistryType {
+			case RegistryTypeNPM:
+				pkg.Identifier = promptUser("NPM package name", pkg.Identifier)
+			case RegistryTypePyPI:
+				pkg.Identifier = promptUser("PyPI package name", pkg.Identifier)
 				if pkg.WheelURL != "" {
 					pkg.WheelURL = promptUser("Wheel URL", pkg.WheelURL)
 				}
-			case "wheel":
-				pkg.Name = promptUser("Wheel package name", pkg.Name)
+			case RegistryTypeWheel:
+				pkg.Identifier = promptUser("Wheel package identifier", pkg.Identifier)
 				if pkg.WheelURL != "" {
 					pkg.WheelURL = promptUser("Wheel URL", pkg.WheelURL)
 				}
-			case "binary":
-				pkg.Name = promptUser("Binary package name", pkg.Name)
+			case RegistryTypeBinary:
+				pkg.Identifier = promptUser("Binary package identifier", pkg.Identifier)
 				if pkg.BinaryURL != "" {
 					pkg.BinaryURL = promptUser("Binary download URL", pkg.BinaryURL)
 				}
-			case "docker":
-				pkg.Name = promptUser("Docker image name", pkg.Name)
+			case RegistryTypeOCI:
+				pkg.Identifier = promptUser("Docker image name", pkg.Identifier)
 			default:
-				pkg.Name = promptUser("Package name", pkg.Name)
+				pkg.Identifier = promptUser("Package identifier", pkg.Identifier)
 			}
 			pkg.Version = promptUser("Package version", pkg.Version)
 
 			if len(pkg.EnvironmentVariables) > 0 {
-				fmt.Printf("\n--- Environment Variables (%s) ---\n", pkg.RegistryName)
+				fmt.Printf("\n--- Environment Variables (%s) ---\n", pkg.RegistryType)
 				for i := range pkg.EnvironmentVariables {
 					env := &pkg.EnvironmentVariables[i]
 					fmt.Printf("\nConfiguring environment variable: %s\n", env.Name)
@@ -921,7 +945,7 @@ func createInteractiveServer() (*ServerDetail, error) {
 				}
 			}
 			if len(pkg.RuntimeArguments) > 0 {
-				fmt.Printf("\n--- Runtime Arguments (%s) ---\n", pkg.RegistryName)
+				fmt.Printf("\n--- Runtime Arguments (%s) ---\n", pkg.RegistryType)
 				for i := range pkg.RuntimeArguments {
 					arg := &pkg.RuntimeArguments[i]
 					argIdentifier := arg.Description

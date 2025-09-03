@@ -125,9 +125,9 @@ func createMockServer() *httptest.Server {
 					},
 					Packages: []Package{
 						{
-							Name:         "@test/server1",
+							Identifier:   "@test/server1",
 							Version:      "1.0.0",
-							RegistryName: "npm",
+							RegistryType: "npm",
 						},
 					},
 					Remotes: []Remote{

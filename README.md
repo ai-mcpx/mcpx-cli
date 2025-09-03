@@ -13,7 +13,7 @@ A command-line interface for interacting with the mcpx registry api. This CLI pr
 - **Server Publishing**: Publish new MCP servers to the registry
 - **Server Updates**: Update existing MCP servers in the registry
 - **Server Deletion**: Delete servers from the registry
-- **Interactive Mode**: Create server configurations interactively with Node.js and Python templates
+- **Interactive Mode**: Create server configurations interactively with Node.js, Python PyPI, Python Wheel, and Binary templates
 - **JSON Output**: All responses are formatted for easy reading with optional detailed information
 - **Configurable Base URL**: Target different mcpx registry instances
 
@@ -243,10 +243,11 @@ Example detailed JSON output (with `--detailed` flag):
       },
       "packages": [
         {
-          "registry_name": "npm",
-          "name": "@modelcontextprotocol/server-filesystem",
+          "registry_type": "npm",
+          "identifier": "@modelcontextprotocol/server-filesystem",
           "version": "1.0.2",
           "runtime_hint": "npx",
+          "transport_type": "stdio",
           "runtime_arguments": [
             {
               "type": "positional",
@@ -346,10 +347,11 @@ Example JSON output (with `--json` flag):
   },
   "packages": [
     {
-      "registry_name": "npm",
-      "name": "@modelcontextprotocol/server-filesystem",
+      "registry_type": "npm",
+      "identifier": "@modelcontextprotocol/server-filesystem",
       "version": "1.0.2",
       "runtime_hint": "npx",
+      "transport_type": "stdio",
       "runtime_arguments": [
         {
           "type": "named",
@@ -508,10 +510,11 @@ Example server configuration file (`updated-server.json`):
   },
   "packages": [
     {
-      "registry_name": "npm",
-      "name": "@modelcontextprotocol/server-filesystem",
+      "registry_type": "npm",
+      "identifier": "@modelcontextprotocol/server-filesystem",
       "version": "1.0.3",
       "runtime_hint": "npx",
+      "transport_type": "stdio",
       "runtime_arguments": [
         {
           "type": "positional",
@@ -723,25 +726,43 @@ See `example-server-node.json` and `example-server-python.json` for complete exa
 
 The interactive mode uses built-in templates for different server runtimes:
 
-### Node.js Template (`example-server-node.json`)
+### Node.js Template (`example-server-npm.json`)
 
 The Node.js template is pre-configured with:
-- NPM package registry settings
+- NPM package registry settings (`registry_type: "npm"`)
 - `npx` runtime hint for execution
+- Standard transport type (`transport_type: "stdio"`)
 - Standard environment variables (`MCP_HOST`, `MCP_PORT`)
-- HTTP transport configuration
 - Positional arguments for configuration file path
 
-### Python Template (`example-server-python.json`)
+### Python PyPI Template (`example-server-pypi.json`)
 
-The Python template includes:
-- PyPI package registry settings
+The Python PyPI template includes:
+- PyPI package registry settings (`registry_type: "pypi"`)
 - `python` runtime hint for execution
+- Standard transport type (`transport_type: "stdio"`)
 - Python-specific environment variables (`PYTHONPATH`, `MCP_HOST`, `MCP_PORT`)
-- HTTP transport configuration
 - Option and positional arguments for script execution
 
-Both templates provide sensible defaults that can be customized during the interactive configuration process.
+### Python Wheel Template (`example-server-wheel.json`)
+
+The Python Wheel template includes:
+- Wheel package registry settings (`registry_type: "wheel"`)
+- Direct wheel URL for package distribution
+- `python` runtime hint for execution
+- Standard transport type (`transport_type: "stdio"`)
+- Python-specific environment variables
+
+### Binary Template (`example-server-binary.json`)
+
+The Binary template includes:
+- Binary package registry settings (`registry_type: "binary"`)
+- Direct binary URL for package distribution
+- `binary` runtime hint for execution
+- Standard transport type (`transport_type: "stdio"`)
+- Configuration arguments for binary execution
+
+All templates provide sensible defaults that can be customized during the interactive configuration process and support the new transport type specifications.
 
 ## Authentication
 
@@ -914,11 +935,11 @@ mcpx-cli servers --json | jq -r '.servers[].id'
 # Get all servers with detailed information (packages and remotes)
 mcpx-cli servers --json --detailed
 
-# Extract package names from all servers with detailed info
-mcpx-cli servers --json --detailed | jq -r '.servers[].packages[].name'
+# Extract package identifiers from all servers with detailed info
+mcpx-cli servers --json --detailed | jq -r '.servers[].packages[].identifier'
 
 # Find servers with specific package registry
-mcpx-cli servers --json --detailed | jq '.servers[] | select(.packages[]?.registry_name == "npm")'
+mcpx-cli servers --json --detailed | jq '.servers[] | select(.packages[]?.registry_type == "npm")'
 
 # Get all remote transport types
 mcpx-cli servers --json --detailed | jq -r '.servers[].remotes[]?.transport_type' | sort -u
@@ -927,10 +948,10 @@ mcpx-cli servers --json --detailed | jq -r '.servers[].remotes[]?.transport_type
 mcpx-cli server a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 --json
 
 # Extract specific fields from server details
-mcpx-cli server a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 --json | jq '.packages[].name'
+mcpx-cli server a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 --json | jq '.packages[].identifier'
 
 # Get all package registries from a server
-mcpx-cli server a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 --json | jq -r '.packages[].registry_name'
+mcpx-cli server a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 --json | jq -r '.packages[].registry_type'
 
 # Extract remote URLs
 mcpx-cli server a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 --json | jq -r '.remotes[].url'
