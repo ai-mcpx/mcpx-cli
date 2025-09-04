@@ -5,6 +5,7 @@ A command-line interface for interacting with the mcpx registry api. This CLI pr
 ## Features
 
 - **Authentication System**: Multiple authentication methods including GitHub OAuth, GitHub OIDC, and anonymous access
+- **Repository Source Support**: Full support for GitHub, GitLab, and Gerrit repositories with automatic URL validation
 - **Automatic Token Management**: Secure credential storage and automatic token refresh
 - **Health Check**: Verify api connectivity and status
 - **Server Listing**: Browse available MCP servers with pagination
@@ -820,6 +821,69 @@ make demo-servers
 # Run all demos
 make demo-all
 ```
+
+## Repository Sources
+
+The mcpx-cli supports multiple repository sources when publishing servers. The repository information helps users and security experts inspect the source code of MCP servers for transparency.
+
+### Supported Repository Sources
+
+| Source | URL Format | Example | Description |
+|--------|------------|---------|-------------|
+| **GitHub** | `https://github.com/user/repo` | `https://github.com/microsoft/vscode` | Most common, supports GitHub authentication |
+| **GitLab** | `https://gitlab.com/user/repo` | `https://gitlab.com/gitlab-org/gitlab` | GitLab-hosted repositories |
+| **Gerrit** | `http://host:port/project/path` | `http://gerrit.example.com:8080/my-project` | Enterprise Gerrit installations |
+
+### Repository Configuration Examples
+
+#### GitHub Repository
+```json
+{
+  "name": "io.github.example/my-server",
+  "description": "My awesome MCP server",
+  "repository": {
+    "url": "https://github.com/example/my-server",
+    "source": "github",
+    "id": "example/my-server"
+  }
+}
+```
+
+#### GitLab Repository
+```json
+{
+  "name": "io.modelcontextprotocol.anonymous/gitlab-server",
+  "description": "MCP server hosted on GitLab",
+  "repository": {
+    "url": "https://gitlab.com/myorg/my-server",
+    "source": "gitlab",
+    "id": "myorg/my-server"
+  }
+}
+```
+
+#### Gerrit Repository
+```json
+{
+  "name": "io.modelcontextprotocol.anonymous/enterprise-server",
+  "description": "Enterprise MCP server from Gerrit",
+  "repository": {
+    "url": "http://gerrit.company.com:8080/plugins/gitiles/mcp-server/+/refs/heads/main",
+    "source": "gerrit",
+    "id": "mcp-server"
+  }
+}
+```
+
+### Repository Source Validation
+
+The CLI automatically validates repository URLs based on the specified source:
+
+- **GitHub**: Validates `github.com` domain and proper owner/repo format
+- **GitLab**: Validates `gitlab.com` domain and proper owner/repo format
+- **Gerrit**: Accepts flexible URL formats for various Gerrit installations
+
+**Note**: Repository information is validated by the registry server. Ensure your repository URL is publicly accessible for transparency and security validation.
 
 ## Examples
 

@@ -1,0 +1,102 @@
+{
+  "name": "io.modelcontextprotocol.anonymous/test-server-python",
+  "description": "A test mcp server in python",
+  "status": "active",
+  "repository": {
+    "url": "http://127.0.0.1:8080/plugins/gitiles/example/+/refs/heads/master/test-server-python",
+    "source": "gerrit",
+    "id": "example/test-server-python"
+  },
+  "version_detail": {
+    "version": "1.0.0"
+  },
+  "packages": [
+    {
+      "registry_type": "pypi",
+      "registry_base_url": "https://pypi.org",
+      "identifier": "test-server-python",
+      "version": "1.0.0",
+      "runtime_hint": "python",
+      "transport_type": "stdio",
+      "runtime_arguments": [
+        {
+          "type": "string",
+          "name": "config_path",
+          "value_hint": "config_path",
+          "description": "Path to configuration file",
+          "default": "./config.json",
+          "is_required": true
+        }
+      ],
+      "environment_variables": [
+        {
+          "name": "MCP_HOST",
+          "description": "Server host address",
+          "format": "string",
+          "is_required": false,
+          "default": "0.0.0.0"
+        },
+        {
+          "name": "MCP_PORT",
+          "description": "Server port number",
+          "format": "number",
+          "is_required": false,
+          "default": "8002"
+        }
+      ]
+    },
+    {
+      "registry_type": "oci",
+      "identifier": "example/test-server-python",
+      "version": "1.0.0",
+      "runtime_hint": "docker",
+      "runtime_arguments": [
+        {
+          "type": "named",
+          "name": "--rm",
+          "value_hint": "--rm",
+          "description": "Remove container after exit",
+          "default": "",
+          "is_required": true
+        },
+        {
+          "type": "string",
+          "name": "-p",
+          "value_hint": "port_mapping",
+          "description": "Port mapping for the container",
+          "default": "8002:8000",
+          "is_required": false
+        }
+      ],
+      "environment_variables": [
+        {
+          "name": "MCP_HOST",
+          "description": "Server host address",
+          "format": "string",
+          "is_required": false,
+          "default": "0.0.0.0"
+        },
+        {
+          "name": "MCP_PORT",
+          "description": "Server port number",
+          "format": "number",
+          "is_required": false,
+          "default": "8002"
+        }
+      ]
+    }
+  ],
+  "remotes": [
+    {
+      "transport_type": "streamable-http",
+      "url": "http://localhost:8002",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json",
+          "description": "Content type for JSON requests"
+        }
+      ]
+    }
+  ]
+}
