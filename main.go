@@ -28,6 +28,9 @@ var exampleServerWheelJSON []byte
 //go:embed example-server-binary.json
 var exampleServerBinaryJSON []byte
 
+//go:embed example-server-gerrit.json
+var exampleServerGerritJSON []byte
+
 const (
 	defaultBaseURL = "http://localhost:8080"
 	configFileName = ".mcpx-cli-config.json"
@@ -59,6 +62,7 @@ const (
 	RuntimeHintDocker = "docker"
 	RuntimeHintDNX    = "dnx"
 	RuntimeHintBinary = "binary"
+	RuntimeHintWheel  = "wheel"
 )
 
 var version = "dev"
@@ -866,7 +870,7 @@ func createInteractiveServer() (*ServerDetail, error) {
 	fmt.Println("=== Interactive Server Configuration ===")
 	fmt.Println()
 
-	runtime := promptChoice("Select server runtime:", []string{"node", "python-pypi", "python-wheel", "binary"}, "node")
+	runtime := promptChoice("Select server runtime:", []string{"node", "python-pypi", "python-wheel", "binary", "gerrit"}, "node")
 
 	var data []byte
 	switch runtime {
@@ -878,6 +882,8 @@ func createInteractiveServer() (*ServerDetail, error) {
 		data = exampleServerWheelJSON
 	case "binary":
 		data = exampleServerBinaryJSON
+	case "gerrit":
+		data = exampleServerGerritJSON
 	}
 
 	var server ServerDetail

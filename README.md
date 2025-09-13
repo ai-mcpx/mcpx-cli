@@ -629,7 +629,7 @@ mcpx-cli publish --interactive
 ```
 
 The interactive mode will:
-1. **Choose Runtime**: Select between Node.js and Python server templates
+1. **Choose Runtime**: Select between Node.js, Python, Binary, and Gerrit server templates
 2. **Configure Server**: Set name, description, and repository information
 3. **Set Version**: Specify package version and details
 4. **Environment Setup**: Configure environment variables and runtime settings
@@ -762,6 +762,15 @@ The Binary template includes:
 - `binary` runtime hint for execution
 - Standard transport type (`transport_type: "stdio"`)
 - Configuration arguments for binary execution
+
+### Gerrit Template (`example-server-gerrit.json`)
+
+The Gerrit template includes:
+- Gerrit repository source (`source: "gerrit"`)
+- PyPI and OCI package registry support
+- Python and Docker runtime hints
+- Standard transport types (`transport_type: "stdio"` and `streamable-http`)
+- Gerrit-specific repository URL format
 
 All templates provide sensible defaults that can be customized during the interactive configuration process and support the new transport type specifications.
 
