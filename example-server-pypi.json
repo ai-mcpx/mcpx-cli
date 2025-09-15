@@ -7,9 +7,7 @@
     "source": "github",
     "id": "example/test-server-python"
   },
-  "version_detail": {
-    "version": "1.0.0"
-  },
+  "version": "1.0.0",
   "packages": [
     {
       "registry_type": "pypi",
@@ -17,7 +15,9 @@
       "identifier": "test-server-python",
       "version": "1.0.0",
       "runtime_hint": "python",
-      "transport_type": "stdio",
+      "transport": {
+        "type": "stdio"
+      },
       "runtime_arguments": [
         {
           "type": "string",
@@ -46,7 +46,7 @@
       ]
     },
     {
-      "registry_type": "oci",
+      "registry_type": "docker",
       "identifier": "example/test-server-python",
       "version": "1.0.0",
       "runtime_hint": "docker",
@@ -88,8 +88,8 @@
   ],
   "remotes": [
     {
-      "transport_type": "streamable-http",
-      "url": "http://localhost:8002",
+      "type": "streamable-http",
+      "url": "https://anonymous.modelcontextprotocol.io/test-server-python",
       "headers": [
         {
           "name": "Content-Type",

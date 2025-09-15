@@ -1,0 +1,77 @@
+{
+  "name": "io.modelcontextprotocol.anonymous/test-server-docker",
+  "description": "A test mcp server with docker distribution",
+  "status": "active",
+  "repository": {
+    "url": "https://github.com/example/test-server-docker",
+    "source": "github",
+    "id": "example/test-server-docker"
+  },
+  "version": "1.0.0",
+  "packages": [
+    {
+      "registry_type": "docker",
+      "identifier": "example/test-server-docker",
+      "version": "1.0.0",
+      "runtime_hint": "docker",
+      "transport": {
+        "type": "stdio"
+      },
+      "environment_variables": [
+        {
+          "name": "MCP_LOG_LEVEL",
+          "description": "Logging level",
+          "format": "string",
+          "is_required": false,
+          "default": "INFO"
+        },
+        {
+          "name": "MCP_DATA_DIR",
+          "description": "Data directory path",
+          "format": "string",
+          "is_required": false,
+          "default": "/app/data"
+        }
+      ],
+      "runtime_arguments": [
+        {
+          "name": "--port",
+          "description": "Server port number",
+          "type": "number",
+          "is_required": false,
+          "default": "8005",
+          "value_hint": "port_number"
+        },
+        {
+          "name": "--host",
+          "description": "Server host address",
+          "type": "string",
+          "is_required": false,
+          "default": "0.0.0.0",
+          "value_hint": "host_address"
+        },
+        {
+          "name": "--config",
+          "description": "Path to configuration file",
+          "type": "string",
+          "is_required": false,
+          "default": "./config.json",
+          "value_hint": "config_path"
+        }
+      ]
+    }
+  ],
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://anonymous.modelcontextprotocol.io/test-server-docker",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json",
+          "description": "Content type for JSON requests"
+        }
+      ]
+    }
+  ]
+}

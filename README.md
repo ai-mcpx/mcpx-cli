@@ -14,7 +14,7 @@ A command-line interface for interacting with the mcpx registry api. This CLI pr
 - **Server Publishing**: Publish new MCP servers to the registry
 - **Server Updates**: Update existing MCP servers in the registry
 - **Server Deletion**: Delete servers from the registry
-- **Interactive Mode**: Create server configurations interactively with Node.js, Python PyPI, Python Wheel, and Binary templates
+- **Interactive Mode**: Create server configurations interactively with Node.js, Python PyPI, Python Wheel, Binary, and Docker templates
 - **JSON Output**: All responses are formatted for easy reading with optional detailed information
 - **Configurable Base URL**: Target different mcpx registry instances
 
@@ -629,7 +629,7 @@ mcpx-cli publish --interactive
 ```
 
 The interactive mode will:
-1. **Choose Runtime**: Select between Node.js, Python, Binary, and Gerrit server templates
+1. **Choose Runtime**: Select between Node.js, Python, Binary, Docker, and Gerrit server templates
 2. **Configure Server**: Set name, description, and repository information
 3. **Set Version**: Specify package version and details
 4. **Environment Setup**: Configure environment variables and runtime settings
@@ -762,6 +762,15 @@ The Binary template includes:
 - `binary` runtime hint for execution
 - Standard transport type (`transport_type: "stdio"`)
 - Configuration arguments for binary execution
+
+### Docker Template (`example-server-docker.json`)
+
+The Docker template includes:
+- Docker package registry settings (`registry_type: "docker"`)
+- Docker image identifier for container distribution
+- `docker` runtime hint for execution
+- Standard transport type (`transport_type: "stdio"`)
+- Docker-specific environment variables and runtime arguments
 
 ### Gerrit Template (`example-server-gerrit.json`)
 

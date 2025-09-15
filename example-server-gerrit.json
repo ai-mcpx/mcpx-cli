@@ -7,49 +7,16 @@
     "source": "gerrit",
     "id": "example/test-server-gerrit"
   },
-  "version_detail": {
-    "version": "1.0.0"
-  },
+  "version": "1.0.0",
   "packages": [
     {
-      "registry_type": "pypi",
-      "registry_base_url": "https://pypi.org",
-      "identifier": "test-server-gerrit",
-      "version": "1.0.0",
-      "runtime_hint": "python",
-      "transport_type": "stdio",
-      "runtime_arguments": [
-        {
-          "type": "string",
-          "name": "config_path",
-          "value_hint": "config_path",
-          "description": "Path to configuration file",
-          "default": "./config.json",
-          "is_required": true
-        }
-      ],
-      "environment_variables": [
-        {
-          "name": "MCP_HOST",
-          "description": "Server host address",
-          "format": "string",
-          "is_required": false,
-          "default": "0.0.0.0"
-        },
-        {
-          "name": "MCP_PORT",
-          "description": "Server port number",
-          "format": "number",
-          "is_required": false,
-          "default": "8004"
-        }
-      ]
-    },
-    {
-      "registry_type": "oci",
+      "registry_type": "docker",
       "identifier": "example/test-server-gerrit",
       "version": "1.0.0",
       "runtime_hint": "docker",
+      "transport": {
+        "type": "stdio"
+      },
       "runtime_arguments": [
         {
           "type": "named",
@@ -88,8 +55,8 @@
   ],
   "remotes": [
     {
-      "transport_type": "streamable-http",
-      "url": "http://localhost:8004",
+      "type": "streamable-http",
+      "url": "https://anonymous.modelcontextprotocol.io/test-server-gerrit",
       "headers": [
         {
           "name": "Content-Type",

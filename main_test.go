@@ -132,7 +132,7 @@ func createMockServer() *httptest.Server {
 					},
 					Remotes: []Remote{
 						{
-							TransportType: "stdio",
+							Type: "stdio",
 						},
 					},
 				},

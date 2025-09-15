@@ -7,16 +7,16 @@
     "source": "github",
     "id": "example/test-server-node"
   },
-  "version_detail": {
-    "version": "1.0.0"
-  },
+  "version": "1.0.0",
   "packages": [
     {
       "registry_type": "npm",
       "identifier": "@example/test-server-node",
       "version": "1.0.0",
       "runtime_hint": "npx",
-      "transport_type": "stdio",
+      "transport": {
+        "type": "stdio"
+      },
       "runtime_arguments": [
         {
           "type": "string",
@@ -45,7 +45,7 @@
       ]
     },
     {
-      "registry_type": "oci",
+      "registry_type": "docker",
       "identifier": "example/test-server-node",
       "version": "1.0.0",
       "runtime_hint": "docker",
@@ -87,8 +87,8 @@
   ],
   "remotes": [
     {
-      "transport_type": "streamable-http",
-      "url": "http://localhost:8001",
+      "type": "streamable-http",
+      "url": "https://anonymous.modelcontextprotocol.io/test-server-node",
       "headers": [
         {
           "name": "Content-Type",

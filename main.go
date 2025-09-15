@@ -31,6 +31,9 @@ var exampleServerBinaryJSON []byte
 //go:embed example-server-gerrit.json
 var exampleServerGerritJSON []byte
 
+//go:embed example-server-docker.json
+var exampleServerDockerJSON []byte
+
 const (
 	defaultBaseURL = "http://localhost:8080"
 	configFileName = ".mcpx-cli-config.json"
@@ -46,6 +49,7 @@ const (
 	RegistryTypeNPM    = "npm"
 	RegistryTypePyPI   = "pypi"
 	RegistryTypeOCI    = "oci"
+	RegistryTypeDocker = "docker"
 	RegistryTypeNuGet  = "nuget"
 	RegistryTypeMCPB   = "mcpb"
 	RegistryTypeWheel  = "wheel"
@@ -104,7 +108,8 @@ type Server struct {
 	Description   string        `json:"description"`
 	Status        string        `json:"status,omitempty"`
 	Repository    Repository    `json:"repository"`
-	VersionDetail VersionDetail `json:"version_detail"`
+	Version       string        `json:"version"`
+	VersionDetail VersionDetail `json:"version_detail,omitempty"` // Deprecated: use Version
 }
 
 type Metadata struct {
@@ -180,6 +185,10 @@ type Argument struct {
 	ValueHint          string `json:"value_hint,omitempty"`
 }
 
+type Transport struct {
+	Type string `json:"type"`
+}
+
 type Package struct {
 	RegistryType         string          `json:"registry_type"`
 	RegistryBaseURL      string          `json:"registry_base_url,omitempty"`
@@ -189,16 +198,17 @@ type Package struct {
 	BinaryURL            string          `json:"binary_url,omitempty"`
 	FileSHA256           string          `json:"file_sha256,omitempty"`
 	RuntimeHint          string          `json:"runtime_hint,omitempty"`
-	TransportType        string          `json:"transport_type,omitempty"`
+	Transport            Transport       `json:"transport,omitempty"`
+	TransportType        string          `json:"transport_type,omitempty"` // Deprecated: use Transport
 	RuntimeArguments     []Argument      `json:"runtime_arguments,omitempty"`
 	PackageArguments     []Argument      `json:"package_arguments,omitempty"`
 	EnvironmentVariables []KeyValueInput `json:"environment_variables,omitempty"`
 }
 
 type Remote struct {
-	TransportType string          `json:"transport_type"`
-	URL           string          `json:"url"`
-	Headers       []KeyValueInput `json:"headers,omitempty"`
+	Type    string          `json:"type"`
+	URL     string          `json:"url"`
+	Headers []KeyValueInput `json:"headers,omitempty"`
 }
 
 type ServerDetail struct {
@@ -616,7 +626,11 @@ func (c *MCPXClient) ListServers(cursor string, limit int, jsonOutput bool, deta
 					fmt.Printf("Status: %s\n", server.Status)
 				}
 				fmt.Printf("Repository: %s (%s)\n", server.Repository.URL, server.Repository.Source)
-				fmt.Printf("Version: %s\n", server.VersionDetail.Version)
+				version := server.Version
+				if version == "" && server.VersionDetail.Version != "" {
+					version = server.VersionDetail.Version
+				}
+				fmt.Printf("Version: %s\n", version)
 				if server.VersionDetail.ReleaseDate != "" {
 					fmt.Printf("Release Date: %s\n", server.VersionDetail.ReleaseDate)
 				}
@@ -691,7 +705,11 @@ func (c *MCPXClient) GetServer(id string, jsonOutput bool) error {
 				fmt.Printf("Status: %s\n", serverDetail.Status)
 			}
 			fmt.Printf("Repository: %s (%s)\n", serverDetail.Repository.URL, serverDetail.Repository.Source)
-			fmt.Printf("Version: %s\n", serverDetail.VersionDetail.Version)
+			version := serverDetail.Version
+			if version == "" && serverDetail.VersionDetail.Version != "" {
+				version = serverDetail.VersionDetail.Version
+			}
+			fmt.Printf("Version: %s\n", version)
 			if serverDetail.VersionDetail.ReleaseDate != "" {
 				fmt.Printf("Release Date: %s\n", serverDetail.VersionDetail.ReleaseDate)
 			}
@@ -741,7 +759,11 @@ func (c *MCPXClient) GetServer(id string, jsonOutput bool) error {
 				fmt.Printf("\nRemotes:\n")
 				for i, remote := range serverDetail.Remotes {
 					fmt.Printf("  Remote %d:\n", i+1)
-					fmt.Printf("    Transport: %s\n", remote.TransportType)
+					transportType := remote.Type
+					if transportType == "" {
+						transportType = "unknown"
+					}
+					fmt.Printf("    Transport: %s\n", transportType)
 					fmt.Printf("    URL: %s\n", remote.URL)
 				}
 			}
@@ -870,7 +892,7 @@ func createInteractiveServer() (*ServerDetail, error) {
 	fmt.Println("=== Interactive Server Configuration ===")
 	fmt.Println()
 
-	runtime := promptChoice("Select server runtime:", []string{"node", "python-pypi", "python-wheel", "binary", "gerrit"}, "node")
+	runtime := promptChoice("Select server runtime:", []string{"node", "python-pypi", "python-wheel", "binary", "docker", "gerrit"}, "node")
 
 	var data []byte
 	switch runtime {
@@ -882,6 +904,8 @@ func createInteractiveServer() (*ServerDetail, error) {
 		data = exampleServerWheelJSON
 	case "binary":
 		data = exampleServerBinaryJSON
+	case "docker":
+		data = exampleServerDockerJSON
 	case "gerrit":
 		data = exampleServerGerritJSON
 	}
@@ -901,7 +925,11 @@ func createInteractiveServer() (*ServerDetail, error) {
 	server.Repository.ID = promptUser("Repository ID (e.g., username/repo)", server.Repository.ID)
 
 	fmt.Println("\n--- Version Information ---")
-	server.VersionDetail.Version = promptUser("Version", server.VersionDetail.Version)
+	version := promptUser("Version", server.Version)
+	if version != "" {
+		server.Version = version
+		server.VersionDetail.Version = version // Keep both for compatibility
+	}
 
 	server.VersionDetail.ReleaseDate = time.Now().Format(time.RFC3339)
 
@@ -930,6 +958,8 @@ func createInteractiveServer() (*ServerDetail, error) {
 					pkg.BinaryURL = promptUser("Binary download URL", pkg.BinaryURL)
 				}
 			case RegistryTypeOCI:
+				pkg.Identifier = promptUser("Docker image name", pkg.Identifier)
+			case RegistryTypeDocker:
 				pkg.Identifier = promptUser("Docker image name", pkg.Identifier)
 			default:
 				pkg.Identifier = promptUser("Package identifier", pkg.Identifier)
@@ -1030,7 +1060,11 @@ func (c *MCPXClient) PublishServerInteractive(token string) error {
 	fmt.Println("\n=== Server Configuration Preview ===")
 	fmt.Printf("Name: %s\n", server.Name)
 	fmt.Printf("Description: %s\n", server.Description)
-	fmt.Printf("Version: %s\n", server.VersionDetail.Version)
+	version := server.Version
+	if version == "" && server.VersionDetail.Version != "" {
+		version = server.VersionDetail.Version
+	}
+	fmt.Printf("Version: %s\n", version)
 	fmt.Printf("Repository: %s\n", server.Repository.URL)
 
 	publish := promptChoice("Proceed with publishing?", []string{"yes", "no"}, "no")
@@ -1219,7 +1253,7 @@ func printUsage() {
 	fmt.Println("  update <id> <server.json> [--token] [--json]  Update a server by ID")
 	fmt.Println("  delete <id> [--token] [--json]      Delete a server by ID (token optional)")
 	fmt.Println("  publish <server.json>               Publish a server to the registry")
-	fmt.Println("  publish --interactive               Interactive mode to create and publish a server (supports npm, PyPI, wheel, binary)")
+	fmt.Println("  publish --interactive               Interactive mode to create and publish a server (supports npm, PyPI, wheel, binary, docker)")
 	fmt.Println()
 	fmt.Println("Authentication Flags:")
 	fmt.Println("  --method string      Authentication method (anonymous, github-oauth, github-oidc) (default: anonymous)")

@@ -7,16 +7,16 @@
     "source": "github",
     "id": "example/test-server-binary"
   },
-  "version_detail": {
-    "version": "1.0.0"
-  },
+  "version": "1.0.0",
   "packages": [
     {
       "registry_type": "binary",
       "identifier": "https://github.com/example/test-server-binary/releases/download/v1.0.0/test-server-binary-linux-x64",
       "version": "1.0.0",
       "runtime_hint": "binary",
-      "transport_type": "stdio",
+      "transport": {
+        "type": "stdio"
+      },
       "runtime_arguments": [
         {
           "type": "number",
@@ -61,11 +61,13 @@
       ]
     },
     {
-      "registry_type": "oci",
+      "registry_type": "docker",
       "identifier": "example/test-server-binary",
       "version": "1.0.0",
       "runtime_hint": "docker",
-      "transport_type": "stdio",
+      "transport": {
+        "type": "stdio"
+      },
       "runtime_arguments": [
         {
           "type": "named",
@@ -104,8 +106,8 @@
   ],
   "remotes": [
     {
-      "transport_type": "streamable-http",
-      "url": "http://localhost:8000",
+      "type": "streamable-http",
+      "url": "https://anonymous.modelcontextprotocol.io/test-server-binary",
       "headers": [
         {
           "name": "Content-Type",
