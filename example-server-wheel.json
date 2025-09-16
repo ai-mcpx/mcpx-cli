@@ -11,7 +11,7 @@
   "packages": [
     {
       "registry_type": "wheel",
-      "identifier": "https://github.com/example/test-server-wheel/releases/download/v1.0.0/test_server_wheel-1.0.0-py3-none-any.whl",
+      "identifier": "https://artifactory.com/example/test-server-wheel/releases/download/v1.0.0/test_server_wheel-1.0.0-py3-none-any.whl",
       "version": "1.0.0",
       "runtime_hint": "python",
       "transport": {

@@ -11,7 +11,7 @@
   "packages": [
     {
       "registry_type": "docker",
-      "identifier": "example/test-server-docker",
+      "identifier": "docker.artifactory.com/example/test-server-docker",
       "version": "1.0.0",
       "runtime_hint": "docker",
       "transport": {
