@@ -11,7 +11,7 @@
   "packages": [
     {
       "registry_type": "binary",
-      "identifier": "https://github.com/example/test-server-binary/releases/download/v1.0.0/test-server-binary-linux-x64",
+      "identifier": "https://artifactory.com/example/test-server-binary/releases/download/v1.0.0/test-server-binary-linux-x64",
       "version": "1.0.0",
       "runtime_hint": "binary",
       "transport": {
