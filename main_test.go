@@ -61,11 +61,12 @@ func createMockServer() *httptest.Server {
 							"is_latest":    true,
 						},
 						"_meta": map[string]interface{}{
-							"io.modelcontextprotocol.registry": map[string]interface{}{
-								"id":           "58031f85-792f-4c22-9d76-b4dd01e287aa",
-								"published_at": "2023-01-01T00:00:00Z",
-								"updated_at":   "2023-01-01T00:00:00Z",
-								"is_latest":    true,
+							"io.modelcontextprotocol.registry/official": map[string]interface{}{
+								"serverId":    "58031f85-792f-4c22-9d76-b4dd01e287aa",
+								"versionId":   "58031f85-792f-4c22-9d76-b4dd01e287aa-v1",
+								"publishedAt": "2023-01-01T00:00:00Z",
+								"updatedAt":   "2023-01-01T00:00:00Z",
+								"isLatest":    true,
 							},
 						},
 					},
@@ -84,11 +85,12 @@ func createMockServer() *httptest.Server {
 							"is_latest":    true,
 						},
 						"_meta": map[string]interface{}{
-							"io.modelcontextprotocol.registry": map[string]interface{}{
-								"id":           "69142f85-792f-4c22-9d76-b4dd01e287bb",
-								"published_at": "2023-02-01T00:00:00Z",
-								"updated_at":   "2023-02-01T00:00:00Z",
-								"is_latest":    true,
+							"io.modelcontextprotocol.registry/official": map[string]interface{}{
+								"serverId":    "69142f85-792f-4c22-9d76-b4dd01e287bb",
+								"versionId":   "69142f85-792f-4c22-9d76-b4dd01e287bb-v2",
+								"publishedAt": "2023-02-01T00:00:00Z",
+								"updatedAt":   "2023-02-01T00:00:00Z",
+								"isLatest":    true,
 							},
 						},
 					},
@@ -104,44 +106,60 @@ func createMockServer() *httptest.Server {
 
 		switch r.Method {
 		case "GET":
-			// Mock server detail
-			server := ServerDetailWrapper{
-				Server: ServerDetail{
-					Server: Server{
-						ID:          serverID,
-						Name:        "io.test/server1",
-						Description: "Test server 1 detailed",
-						Status:      "active",
-						Repository: Repository{
-							URL:    "https://github.com/test/server1",
-							Source: "github",
-							ID:     "test/server1",
-						},
-						VersionDetail: VersionDetail{
-							Version:     "1.0.0",
-							ReleaseDate: "2023-01-01T00:00:00Z",
-							IsLatest:    true,
+			// Mock server detail - return ServerDetail directly for delete tests
+			server := ServerDetail{
+				Server: Server{
+					ID:          serverID,
+					Name:        "io.test/server1",
+					Description: "Test server 1 detailed",
+					Status:      "active",
+					Repository: Repository{
+						URL:    "https://github.com/test/server1",
+						Source: "github",
+						ID:     "test/server1",
+					},
+					VersionDetail: VersionDetail{
+						Version:     "1.0.0",
+						ReleaseDate: "2023-01-01T00:00:00Z",
+						IsLatest:    true,
+					},
+					Meta: &ServerMeta{
+						Official: &RegistryExtensions{
+							ServerID:  "58031f85-792f-4c22-9d76-b4dd01e287aa",
+							VersionID: serverID,
 						},
 					},
-					Packages: []Package{
-						{
-							Identifier:   "@test/server1",
-							Version:      "1.0.0",
-							RegistryType: "npm",
-						},
+				},
+				Packages: []Package{
+					{
+						Identifier:   "@test/server1",
+						Version:      "1.0.0",
+						RegistryType: "npm",
 					},
-					Remotes: []Remote{
-						{
-							Type: "stdio",
-						},
+				},
+				Remotes: []Remote{
+					{
+						Type: "stdio",
 					},
 				},
 			}
 			_ = json.NewEncoder(w).Encode(server)
 		case "PUT":
-			// Mock server update
-			w.WriteHeader(http.StatusOK)
-			_, _ = fmt.Fprintf(w, `{"message": "Server %s updated successfully"}`, serverID)
+			// Mock server update/delete
+			// Check if this is a delete operation (status set to deleted)
+			var requestBody map[string]interface{}
+			body, _ := io.ReadAll(r.Body)
+			_ = json.Unmarshal(body, &requestBody)
+
+			if status, ok := requestBody["status"].(string); ok && status == "deleted" {
+				// This is a delete operation
+				w.WriteHeader(http.StatusOK)
+				_, _ = fmt.Fprintf(w, `{"message": "Version %s deleted successfully"}`, serverID)
+			} else {
+				// This is a regular update
+				w.WriteHeader(http.StatusOK)
+				_, _ = fmt.Fprintf(w, `{"message": "Server %s updated successfully"}`, serverID)
+			}
 		case "DELETE":
 			// Mock server deletion
 			w.WriteHeader(http.StatusOK)
@@ -603,14 +621,14 @@ func TestDeleteServer(t *testing.T) {
 	}{
 		{
 			name:     "delete server",
-			serverID: "test-server-1",
+			serverID: "58031f85-792f-4c22-9d76-b4dd01e287aa-v1", // Use version ID
 			token:    "test-token",
 			json:     false,
 			wantErr:  false,
 		},
 		{
 			name:     "delete server json output",
-			serverID: "test-server-1",
+			serverID: "58031f85-792f-4c22-9d76-b4dd01e287aa-v1", // Use version ID
 			token:    "test-token",
 			json:     true,
 			wantErr:  false,
@@ -644,8 +662,8 @@ func TestDeleteServer(t *testing.T) {
 				}
 			} else {
 				// Should contain formatted output
-				if !strings.Contains(output, "Delete Server") {
-					t.Errorf("Expected formatted output to contain 'Delete Server', got %v", output)
+				if !strings.Contains(output, "Delete Version") {
+					t.Errorf("Expected formatted output to contain 'Delete Version', got %v", output)
 				}
 			}
 		})

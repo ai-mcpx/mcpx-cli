@@ -10,95 +10,97 @@
   "version": "1.0.0",
   "packages": [
     {
-      "registry_type": "binary",
-      "identifier": "https://artifactory.com/example/test-server-binary/releases/download/v1.0.0/test-server-binary-linux-x64",
+      "registryType": "binary",
+      "registryBaseUrl": "https://github.com",
+      "identifier": "https://github.com/example/test-server-binary/releases/download/v1.0.0/test-server-binary-linux-x64",
       "version": "1.0.0",
-      "runtime_hint": "binary",
+      "runtimeHint": "binary",
       "transport": {
         "type": "stdio"
       },
-      "runtime_arguments": [
+      "runtimeArguments": [
         {
           "type": "number",
           "name": "--port",
-          "value_hint": "port_number",
+          "valueHint": "port_number",
           "description": "Server port number",
           "default": "8000",
-          "is_required": false
+          "isRequired": false
         },
         {
           "type": "string",
           "name": "--host",
-          "value_hint": "host_address",
+          "valueHint": "host_address",
           "description": "Server host address",
           "default": "0.0.0.0",
-          "is_required": false
+          "isRequired": false
         },
         {
           "type": "string",
           "name": "--config",
-          "value_hint": "config_path",
+          "valueHint": "config_path",
           "description": "Path to configuration file",
           "default": "./config.json",
-          "is_required": false
+          "isRequired": false
         }
       ],
-      "environment_variables": [
+      "environmentVariables": [
         {
           "name": "MCP_LOG_LEVEL",
           "description": "Logging level",
           "format": "string",
-          "is_required": false,
+          "isRequired": false,
           "default": "INFO"
         },
         {
           "name": "MCP_DATA_DIR",
           "description": "Data directory path",
           "format": "string",
-          "is_required": false,
+          "isRequired": false,
           "default": "./data"
         }
       ]
     },
     {
-      "registry_type": "docker",
+      "registryType": "docker",
+      "registryBaseUrl": "https://docker.io",
       "identifier": "example/test-server-binary",
       "version": "1.0.0",
-      "runtime_hint": "docker",
+      "runtimeHint": "docker",
       "transport": {
         "type": "stdio"
       },
-      "runtime_arguments": [
+      "runtimeArguments": [
         {
           "type": "named",
           "name": "--rm",
-          "value_hint": "--rm",
+          "valueHint": "--rm",
           "description": "Remove container after exit",
           "default": "",
-          "is_required": true
+          "isRequired": true
         },
         {
           "type": "string",
           "name": "-p",
-          "value_hint": "port_mapping",
+          "valueHint": "port_mapping",
           "description": "Port mapping for the container",
           "default": "8000:8000",
-          "is_required": false
+          "isRequired": false
         }
       ],
-      "environment_variables": [
+      "environmentVariables": [
         {
           "name": "MCP_LOG_LEVEL",
           "description": "Logging level",
           "format": "string",
-          "is_required": false,
+          "isRequired": false,
           "default": "INFO"
         },
         {
           "name": "MCP_DATA_DIR",
           "description": "Data directory path",
           "format": "string",
-          "is_required": false,
+          "isRequired": false,
           "default": "/app/data"
         }
       ]

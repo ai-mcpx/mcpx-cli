@@ -10,44 +10,45 @@
   "version": "1.0.0",
   "packages": [
     {
-      "registry_type": "docker",
+      "registryType": "docker",
+      "registryBaseUrl": "https://docker.io",
       "identifier": "example/test-server-gerrit",
       "version": "1.0.0",
-      "runtime_hint": "docker",
+      "runtimeHint": "docker",
       "transport": {
         "type": "stdio"
       },
-      "runtime_arguments": [
+      "runtimeArguments": [
         {
           "type": "named",
           "name": "--rm",
-          "value_hint": "--rm",
+          "valueHint": "--rm",
           "description": "Remove container after exit",
           "default": "",
-          "is_required": true
+          "isRequired": true
         },
         {
           "type": "string",
           "name": "-p",
-          "value_hint": "port_mapping",
+          "valueHint": "port_mapping",
           "description": "Port mapping for the container",
           "default": "8004:8000",
-          "is_required": false
+          "isRequired": false
         }
       ],
-      "environment_variables": [
+      "environmentVariables": [
         {
           "name": "MCP_HOST",
           "description": "Server host address",
           "format": "string",
-          "is_required": false,
+          "isRequired": false,
           "default": "0.0.0.0"
         },
         {
           "name": "MCP_PORT",
           "description": "Server port number",
           "format": "number",
-          "is_required": false,
+          "isRequired": false,
           "default": "8004"
         }
       ]

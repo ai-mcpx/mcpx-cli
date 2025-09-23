@@ -10,77 +10,81 @@
   "version": "1.0.0",
   "packages": [
     {
-      "registry_type": "pypi",
-      "registry_base_url": "https://pypi.org",
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
       "identifier": "test-server-python",
       "version": "1.0.0",
-      "runtime_hint": "python",
+      "runtimeHint": "python",
       "transport": {
         "type": "stdio"
       },
-      "runtime_arguments": [
+      "runtimeArguments": [
         {
           "type": "string",
           "name": "config_path",
-          "value_hint": "config_path",
+          "valueHint": "config_path",
           "description": "Path to configuration file",
           "default": "./config.json",
-          "is_required": true
+          "isRequired": true
         }
       ],
-      "environment_variables": [
+      "environmentVariables": [
         {
           "name": "MCP_HOST",
           "description": "Server host address",
           "format": "string",
-          "is_required": false,
+          "isRequired": false,
           "default": "0.0.0.0"
         },
         {
           "name": "MCP_PORT",
           "description": "Server port number",
           "format": "number",
-          "is_required": false,
+          "isRequired": false,
           "default": "8002"
         }
       ]
     },
     {
-      "registry_type": "docker",
+      "registryType": "docker",
+      "registryBaseUrl": "https://docker.io",
       "identifier": "example/test-server-python",
       "version": "1.0.0",
-      "runtime_hint": "docker",
-      "runtime_arguments": [
+      "runtimeHint": "docker",
+      "transport": {
+        "type": "stdio"
+      },
+      "runtimeArguments": [
         {
           "type": "named",
           "name": "--rm",
-          "value_hint": "--rm",
+          "valueHint": "--rm",
           "description": "Remove container after exit",
           "default": "",
-          "is_required": true
+          "isRequired": true
         },
         {
           "type": "string",
           "name": "-p",
-          "value_hint": "port_mapping",
+          "valueHint": "port_mapping",
           "description": "Port mapping for the container",
           "default": "8002:8000",
-          "is_required": false
+          "isRequired": false
         }
       ],
-      "environment_variables": [
+      "environmentVariables": [
         {
           "name": "MCP_HOST",
           "description": "Server host address",
           "format": "string",
-          "is_required": false,
+          "isRequired": false,
           "default": "0.0.0.0"
         },
         {
           "name": "MCP_PORT",
           "description": "Server port number",
           "format": "number",
-          "is_required": false,
+          "isRequired": false,
           "default": "8002"
         }
       ]

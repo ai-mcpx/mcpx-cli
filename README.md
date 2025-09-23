@@ -13,8 +13,8 @@ A command-line interface for interacting with the mcpx registry api. This CLI pr
 - **Detailed Server Information**: Retrieve complete server data including packages and remotes
 - **Server Publishing**: Publish new MCP servers to the registry
 - **Server Updates**: Update existing MCP servers in the registry
-- **Server Deletion**: Delete servers from the registry
-- **Interactive Mode**: Create server configurations interactively with Node.js, Python PyPI, Python Wheel, Binary, and Docker templates
+- **Server Deletion**: Delete server versions from the registry using version IDs
+- **Interactive Mode**: Create server configurations interactively with Node.js, Python PyPI, Python Wheel, Binary, Docker, OCI, and MCPB templates
 - **JSON Output**: All responses are formatted for easy reading with optional detailed information
 - **Configurable Base URL**: Target different mcpx registry instances
 
@@ -38,7 +38,7 @@ The mcpx-cli supports multiple authentication methods that match the backend cap
 - `GET /v0/servers/{id}` - Get detailed server information including packages and remotes
 - `POST /v0/publish` - Publish a new server
 - `PUT /v0/servers/{id}` - Update an existing server
-- `DELETE /v0/servers/{id}` - Delete a server from the registry
+- `PUT /v0/servers/{id}?version={version}` - Delete a server version (soft delete via edit endpoint)
 
 **Note**: The API follows a common pattern where the list endpoint (`/v0/servers`) returns basic server metadata for efficient browsing, while the detail endpoint (`/v0/servers/{id}`) provides complete information including packages and remotes. The CLI's `--detailed` flag bridges this gap by automatically fetching detailed information for all servers in a list.
 
@@ -80,6 +80,49 @@ mcpx-cli [global flags] <command> [command flags]
 
 - `--base-url=string`: Base url of the mcpx api (default: http://localhost:8080)
 - `--version`: Show version information
+
+## Quick Start
+
+### Step 1: Authenticate with the server
+
+Before publishing servers, you need to authenticate with the mcpx registry:
+
+```bash
+# For testing/development (recommended)
+mcpx-cli --base-url=http://your-server.com/ login --method anonymous
+
+# For GitHub namespaced servers (io.github.*)
+mcpx-cli --base-url=http://your-server.com/ login --method github-oauth
+
+# Check if authentication worked
+mcpx-cli --base-url=http://your-server.com/ health
+```
+
+**Note**: Authentication credentials are automatically saved to `~/.mcpx-cli-config.json` and will be used for subsequent API calls.
+
+### Step 2: Publish a server
+
+Once authenticated, you can publish servers using example configurations:
+
+```bash
+# Publish using an example configuration
+mcpx-cli --base-url=http://your-server.com/ publish example-server-binary.json
+
+# Or create a server interactively
+mcpx-cli --base-url=http://your-server.com/ publish --interactive
+```
+
+### Step 3: Verify your server
+
+Check that your server was published successfully:
+
+```bash
+# List all servers
+mcpx-cli --base-url=http://your-server.com/ servers
+
+# Get details of a specific server
+mcpx-cli --base-url=http://your-server.com/ server <server-id>
+```
 
 ### Commands
 
@@ -244,28 +287,28 @@ Example detailed JSON output (with `--detailed` flag):
       },
       "packages": [
         {
-          "registry_type": "npm",
+          "registryType": "npm",
           "identifier": "@modelcontextprotocol/server-filesystem",
           "version": "1.0.2",
-          "runtime_hint": "npx",
-          "transport_type": "stdio",
-          "runtime_arguments": [
+          "runtimeHint": "npx",
+          "type": "stdio",
+          "runtimeArguments": [
             {
               "type": "positional",
               "name": "target_dir",
               "description": "Path to access",
               "format": "string",
-              "is_required": true,
+              "isRequired": true,
               "default": "/Users/username/Desktop",
-              "value_hint": "target_dir"
+              "valueHint": "target_dir"
             }
           ],
-          "environment_variables": [
+          "environmentVariables": [
             {
               "name": "LOG_LEVEL",
               "description": "Logging level (debug, info, warn, error)",
               "format": "string",
-              "is_required": false,
+              "isRequired": false,
               "default": "info"
             }
           ]
@@ -273,7 +316,7 @@ Example detailed JSON output (with `--detailed` flag):
       ],
       "remotes": [
         {
-          "transport_type": "stdio",
+          "type": "stdio",
           "url": "npx @modelcontextprotocol/server-filesystem"
         }
       ]
@@ -348,28 +391,28 @@ Example JSON output (with `--json` flag):
   },
   "packages": [
     {
-      "registry_type": "npm",
+      "registryType": "npm",
       "identifier": "@modelcontextprotocol/server-filesystem",
       "version": "1.0.2",
-      "runtime_hint": "npx",
-      "transport_type": "stdio",
-      "runtime_arguments": [
+      "runtimeHint": "npx",
+      "type": "stdio",
+      "runtimeArguments": [
         {
           "type": "named",
           "name": "--module",
           "description": "Run as Node.js module",
           "format": "string",
-          "is_required": true,
+          "isRequired": true,
           "default": "-m",
-          "value_hint": "-m"
+          "valueHint": "-m"
         }
       ],
-      "environment_variables": [
+      "environmentVariables": [
         {
           "name": "LOG_LEVEL",
           "description": "Logging level (debug, info, warn, error)",
           "format": "string",
-          "is_required": false,
+          "isRequired": false,
           "default": "info"
         }
       ]
@@ -377,7 +420,7 @@ Example JSON output (with `--json` flag):
   ],
   "remotes": [
     {
-      "transport_type": "stdio",
+      "type": "stdio",
       "url": "npx @modelcontextprotocol/server-filesystem"
     }
   ]
@@ -386,20 +429,20 @@ Example JSON output (with `--json` flag):
 
 #### Delete Server
 
-Delete a server from the registry. Authentication is automatically handled through stored credentials or explicit tokens.
+Delete a server version from the registry using version IDs. Authentication is automatically handled through stored credentials or explicit tokens.
 
 ```bash
 # Using stored authentication (recommended)
-mcpx-cli delete <server-id>
+mcpx-cli delete <version-id>
 
 # Using explicit token (legacy method)
-mcpx-cli delete <server-id> --token <auth-token>
+mcpx-cli delete <version-id> --token <auth-token>
 
 # With JSON output
-mcpx-cli delete <server-id> --json
+mcpx-cli delete <version-id> --json
 
 # Combined flags
-mcpx-cli delete <server-id> --token <auth-token> --json
+mcpx-cli delete <version-id> --token <auth-token> --json
 ```
 
 Example:
@@ -407,47 +450,46 @@ Example:
 # Login first (authentication is stored automatically)
 mcpx-cli login --method github-oauth
 
-# Delete using stored authentication
-mcpx-cli delete a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1
+# List servers to get version IDs
+mcpx-cli servers
+
+# Delete using stored authentication (use version ID from servers list)
+mcpx-cli delete 5406df58-9f95-437f-af09-5f2f283959f3
 
 # Alternative: provide token explicitly
-mcpx-cli delete a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 --token ghp_your_github_token_here
+mcpx-cli delete 5406df58-9f95-437f-af09-5f2f283959f3 --token ghp_your_github_token_here
 
 # Output result in JSON format
-mcpx-cli delete a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 --json
+mcpx-cli delete 5406df58-9f95-437f-af09-5f2f283959f3 --json
 
 # For anonymous deletion (if supported by registry policy)
 mcpx-cli login --method anonymous
-mcpx-cli delete a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1
+mcpx-cli delete 5406df58-9f95-437f-af09-5f2f283959f3
 ```
 
 **Flags:**
-- `--token string`: Authentication token (optional if using stored authentication)
+- `--token string`: Authentication token (optional, will use stored token if not provided)
 - `--json`: Output result in JSON format
 
 **Important Notes:**
-- **Irreversible operation**: Deleted servers cannot be recovered
+- **Version-based deletion**: Uses version IDs (not server IDs) - get these from `mcpx-cli servers`
+- **Soft delete**: Servers are marked as "deleted" but not permanently removed
 - **Authentication**: Automatically uses stored credentials or provided token
-- **Permission check**: You can only delete servers you have permission to modify
-- **Confirmation prompt**: By default, the CLI will ask for confirmation before deletion
+- **Permission check**: You can only delete servers you have edit permissions for
+- **Multiple versions**: Each server version must be deleted individually
 
 Example output:
 ```
-=== Delete Server (ID: a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1) ===
-Server Name: io.modelcontextprotocol/filesystem
-Server Description: Node.js server implementing Model Context Protocol (MCP) for filesystem operations
-
-Are you sure you want to delete this server? This action cannot be undone.
-Type 'yes' to confirm: yes
-
-Status Code: 200
-Success: Server deleted successfully
+=== Delete Version 5406df58-9f95-437f-af09-5f2f283959f3 ===
+✅ Version '5406df58-9f95-437f-af09-5f2f283959f3' deleted successfully
 ```
 
 JSON output example:
 ```json
-{"message": "Server a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 deleted successfully"}
+{"message": "Version 5406df58-9f95-437f-af09-5f2f283959f3 deleted successfully"}
 ```
+
+**Note**: If you get a 403 Forbidden error, it means you don't have edit permissions for that server version. This is expected behavior for servers you don't own or have edit access to.
 
 #### Update Server
 
@@ -511,28 +553,28 @@ Example server configuration file (`updated-server.json`):
   },
   "packages": [
     {
-      "registry_type": "npm",
+      "registryType": "npm",
       "identifier": "@modelcontextprotocol/server-filesystem",
       "version": "1.0.3",
-      "runtime_hint": "npx",
-      "transport_type": "stdio",
-      "runtime_arguments": [
+      "runtimeHint": "npx",
+      "type": "stdio",
+      "runtimeArguments": [
         {
           "type": "positional",
           "name": "target_dir",
           "description": "Path to access",
           "format": "string",
-          "is_required": true,
+          "isRequired": true,
           "default": "/Users/username/Desktop",
-          "value_hint": "target_dir"
+          "valueHint": "target_dir"
         }
       ],
-      "environment_variables": [
+      "environmentVariables": [
         {
           "name": "LOG_LEVEL",
           "description": "Logging level (debug, info, warn, error)",
           "format": "string",
-          "is_required": false,
+          "isRequired": false,
           "default": "info"
         }
       ]
@@ -540,7 +582,7 @@ Example server configuration file (`updated-server.json`):
   ],
   "remotes": [
     {
-      "transport_type": "stdio",
+      "type": "stdio",
       "url": "npx @modelcontextprotocol/server-filesystem"
     }
   ]
@@ -629,7 +671,7 @@ mcpx-cli publish --interactive
 ```
 
 The interactive mode will:
-1. **Choose Runtime**: Select between Node.js, Python, Binary, Docker, and Gerrit server templates
+1. **Choose Runtime**: Select between Node.js, Python, Binary, Docker, OCI, MCPB, and Gerrit server templates
 2. **Configure Server**: Set name, description, and repository information
 3. **Set Version**: Specify package version and details
 4. **Environment Setup**: Configure environment variables and runtime settings
@@ -730,46 +772,46 @@ The interactive mode uses built-in templates for different server runtimes:
 ### Node.js Template (`example-server-npm.json`)
 
 The Node.js template is pre-configured with:
-- NPM package registry settings (`registry_type: "npm"`)
+- NPM package registry settings (`registryType: "npm"`)
 - `npx` runtime hint for execution
-- Standard transport type (`transport_type: "stdio"`)
+- Standard transport type (`type: "stdio"`)
 - Standard environment variables (`MCP_HOST`, `MCP_PORT`)
 - Positional arguments for configuration file path
 
 ### Python PyPI Template (`example-server-pypi.json`)
 
 The Python PyPI template includes:
-- PyPI package registry settings (`registry_type: "pypi"`)
+- PyPI package registry settings (`registryType: "pypi"`)
 - `python` runtime hint for execution
-- Standard transport type (`transport_type: "stdio"`)
+- Standard transport type (`type: "stdio"`)
 - Python-specific environment variables (`PYTHONPATH`, `MCP_HOST`, `MCP_PORT`)
 - Option and positional arguments for script execution
 
 ### Python Wheel Template (`example-server-wheel.json`)
 
 The Python Wheel template includes:
-- Wheel package registry settings (`registry_type: "wheel"`)
+- Wheel package registry settings (`registryType: "wheel"`)
 - Direct wheel URL for package distribution
 - `python` runtime hint for execution
-- Standard transport type (`transport_type: "stdio"`)
+- Standard transport type (`type: "stdio"`)
 - Python-specific environment variables
 
 ### Binary Template (`example-server-binary.json`)
 
 The Binary template includes:
-- Binary package registry settings (`registry_type: "binary"`)
+- Binary package registry settings (`registryType: "binary"`)
 - Direct binary URL for package distribution
 - `binary` runtime hint for execution
-- Standard transport type (`transport_type: "stdio"`)
+- Standard transport type (`type: "stdio"`)
 - Configuration arguments for binary execution
 
 ### Docker Template (`example-server-docker.json`)
 
 The Docker template includes:
-- Docker package registry settings (`registry_type: "docker"`)
+- Docker package registry settings (`registryType: "docker"`)
 - Docker image identifier for container distribution
 - `docker` runtime hint for execution
-- Standard transport type (`transport_type: "stdio"`)
+- Standard transport type (`type: "stdio"`)
 - Docker-specific environment variables and runtime arguments
 
 ### Gerrit Template (`example-server-gerrit.json`)
@@ -778,7 +820,7 @@ The Gerrit template includes:
 - Gerrit repository source (`source: "gerrit"`)
 - PyPI and OCI package registry support
 - Python and Docker runtime hints
-- Standard transport types (`transport_type: "stdio"` and `streamable-http`)
+- Standard transport types (`type: "stdio"` and `streamable-http`)
 - Gerrit-specific repository URL format
 
 All templates provide sensible defaults that can be customized during the interactive configuration process and support the new transport type specifications.
@@ -796,6 +838,50 @@ Publishing servers may require authentication depending on the namespace:
    - Some registries may not require authentication
    - Others may use different authentication methods
    - Check with your registry administrator for specific requirements
+
+## JSON Format
+
+The mcpx-cli uses camelCase field names in JSON to match the mcpx server API specification:
+
+### Package Fields
+- `registryType` - Package registry type (npm, pypi, oci, docker, mcpb, binary, wheel)
+- `registryBaseUrl` - Base URL of the package registry
+- `runtimeHint` - Runtime execution hint (npx, python, docker, binary, etc.)
+- `runtimeArguments` - Array of runtime arguments
+- `environmentVariables` - Array of environment variables
+
+### Argument Fields
+- `isRequired` - Whether the argument is required
+- `valueHint` - Value hint for the argument
+
+### Example Package Structure
+```json
+{
+  "registryType": "npm",
+  "registryBaseUrl": "https://registry.npmjs.org",
+  "identifier": "@example/package-name",
+  "version": "1.0.0",
+  "runtimeHint": "npx",
+  "runtimeArguments": [
+    {
+      "type": "string",
+      "name": "config_path",
+      "valueHint": "config_path",
+      "description": "Path to configuration file",
+      "isRequired": true
+    }
+  ],
+  "environmentVariables": [
+    {
+      "name": "MCP_HOST",
+      "description": "Server host address",
+      "format": "string",
+      "isRequired": false,
+      "default": "0.0.0.0"
+    }
+  ]
+}
+```
 
 ## Development
 
@@ -1021,10 +1107,10 @@ mcpx-cli servers --json --detailed
 mcpx-cli servers --json --detailed | jq -r '.servers[].packages[].identifier'
 
 # Find servers with specific package registry
-mcpx-cli servers --json --detailed | jq '.servers[] | select(.packages[]?.registry_type == "npm")'
+mcpx-cli servers --json --detailed | jq '.servers[] | select(.packages[]?.registryType == "npm")'
 
 # Get all remote transport types
-mcpx-cli servers --json --detailed | jq -r '.servers[].remotes[]?.transport_type' | sort -u
+mcpx-cli servers --json --detailed | jq -r '.servers[].remotes[]?.type' | sort -u
 
 # Get detailed server information in JSON format
 mcpx-cli server a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 --json
@@ -1033,7 +1119,7 @@ mcpx-cli server a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 --json
 mcpx-cli server a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 --json | jq '.packages[].identifier'
 
 # Get all package registries from a server
-mcpx-cli server a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 --json | jq -r '.packages[].registry_type'
+mcpx-cli server a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 --json | jq -r '.packages[].registryType'
 
 # Extract remote URLs
 mcpx-cli server a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 --json | jq -r '.remotes[].url'
@@ -1098,34 +1184,6 @@ Authentication credentials are automatically stored in `~/.mcpx-cli-config.json`
 | `github-oidc` | GitHub OIDC authentication | Enterprise environments, CI/CD |
 | `dns` | Domain-based authentication | Future implementation |
 | `http` | HTTP-based authentication | Future implementation |
-
-### Migration from Token-based Authentication
-
-If you were previously using the `--token` flag, you can migrate to the new authentication system:
-
-```bash
-# Old way (still supported)
-mcpx-cli publish server.json --token ghp_your_token_here
-
-# New way (recommended)
-mcpx-cli login --method github-oauth
-mcpx-cli publish server.json
-```
-
-The token-based authentication is still supported for backward compatibility and CI/CD environments where interactive login is not possible.
-
-## Error Handling
-
-The CLI provides clear error messages for common issues:
-
-- **Connection errors**: Network connectivity problems
-- **Authentication errors**: Invalid or missing tokens
-- **Validation errors**: Invalid server JSON format
-- **Permission errors**: Attempting to delete servers you don't own
-- **Not found errors**: Server ID not found for deletion
-- **Server errors**: API-specific error responses
-
-All errors include HTTP status codes and detailed error messages when available.
 
 ## License
 

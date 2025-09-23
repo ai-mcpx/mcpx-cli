@@ -10,53 +10,54 @@
   "version": "1.0.0",
   "packages": [
     {
-      "registry_type": "docker",
-      "identifier": "docker.artifactory.com/example/test-server-docker",
+      "registryType": "docker",
+      "registryBaseUrl": "https://docker.io",
+      "identifier": "example/test-server-docker",
       "version": "1.0.0",
-      "runtime_hint": "docker",
+      "runtimeHint": "docker",
       "transport": {
         "type": "stdio"
       },
-      "environment_variables": [
+      "environmentVariables": [
         {
           "name": "MCP_LOG_LEVEL",
           "description": "Logging level",
           "format": "string",
-          "is_required": false,
+          "isRequired": false,
           "default": "INFO"
         },
         {
           "name": "MCP_DATA_DIR",
           "description": "Data directory path",
           "format": "string",
-          "is_required": false,
+          "isRequired": false,
           "default": "/app/data"
         }
       ],
-      "runtime_arguments": [
+      "runtimeArguments": [
         {
           "name": "--port",
           "description": "Server port number",
           "type": "number",
-          "is_required": false,
+          "isRequired": false,
           "default": "8005",
-          "value_hint": "port_number"
+          "valueHint": "port_number"
         },
         {
           "name": "--host",
           "description": "Server host address",
           "type": "string",
-          "is_required": false,
+          "isRequired": false,
           "default": "0.0.0.0",
-          "value_hint": "host_address"
+          "valueHint": "host_address"
         },
         {
           "name": "--config",
           "description": "Path to configuration file",
           "type": "string",
-          "is_required": false,
+          "isRequired": false,
           "default": "./config.json",
-          "value_hint": "config_path"
+          "valueHint": "config_path"
         }
       ]
     }

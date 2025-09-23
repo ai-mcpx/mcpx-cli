@@ -52,8 +52,8 @@ const (
 	RegistryTypeDocker = "docker"
 	RegistryTypeNuGet  = "nuget"
 	RegistryTypeMCPB   = "mcpb"
-	RegistryTypeWheel  = "wheel"
 	RegistryTypeBinary = "binary"
+	RegistryTypeWheel  = "wheel"
 
 	// Transport Types - supported remote transport protocols
 	TransportTypeStreamableHTTP = "streamable-http"
@@ -110,6 +110,33 @@ type Server struct {
 	Repository    Repository    `json:"repository"`
 	Version       string        `json:"version"`
 	VersionDetail VersionDetail `json:"version_detail,omitempty"` // Deprecated: use Version
+	Meta          *ServerMeta   `json:"_meta,omitempty"`
+}
+
+type ServerMeta struct {
+	Official *RegistryExtensions `json:"io.modelcontextprotocol.registry/official,omitempty"`
+}
+
+type RegistryExtensions struct {
+	ServerID    string `json:"serverId"`
+	VersionID   string `json:"versionId"`
+	PublishedAt string `json:"publishedAt"`
+	UpdatedAt   string `json:"updatedAt,omitempty"`
+	IsLatest    bool   `json:"isLatest"`
+}
+
+func (s *Server) GetServerID() string {
+	if s.Meta != nil && s.Meta.Official != nil {
+		return s.Meta.Official.ServerID
+	}
+	return s.ID
+}
+
+func (s *Server) GetVersionID() string {
+	if s.Meta != nil && s.Meta.Official != nil {
+		return s.Meta.Official.VersionID
+	}
+	return ""
 }
 
 type Metadata struct {
@@ -511,14 +538,7 @@ func (c *MCPXClient) ListServers(cursor string, limit int, jsonOutput bool, deta
 					if err := json.Unmarshal(body, &serversResp); err == nil {
 						for _, wrapper := range serversResp.Servers {
 							server := wrapper.Server
-							// Extract ID from registry metadata if not in server
-							if server.ID == "" {
-								if wrapper.RegistryMeta != nil {
-									if id, ok := wrapper.RegistryMeta["id"].(string); ok {
-										server.ID = id
-									}
-								}
-							}
+							// Server IDs are now extracted automatically via the _meta field in the Server struct
 							servers = append(servers, server)
 						}
 						metadata = serversResp.Metadata
@@ -527,18 +547,7 @@ func (c *MCPXClient) ListServers(cursor string, limit int, jsonOutput bool, deta
 					// Legacy format: {"servers": [{"name": "...", "_meta": {...} OR "id": "..."}]}
 					var legacyResp LegacyServersResponse
 					if err := json.Unmarshal(body, &legacyResp); err == nil {
-						// Extract IDs from _meta.io.modelcontextprotocol.registry for each server
-						for i, serverInterface := range serversArray {
-							if serverMap, ok := serverInterface.(map[string]interface{}); ok {
-								if meta, ok := serverMap["_meta"].(map[string]interface{}); ok {
-									if registry, ok := meta["io.modelcontextprotocol.registry"].(map[string]interface{}); ok {
-										if id, ok := registry["id"].(string); ok && i < len(legacyResp.Servers) {
-											legacyResp.Servers[i].ID = id
-										}
-									}
-								}
-							}
-						}
+						// Server IDs are now extracted automatically via the _meta field in the Server struct
 						servers = legacyResp.Servers
 						metadata = legacyResp.Metadata
 					}
@@ -619,7 +628,10 @@ func (c *MCPXClient) ListServers(cursor string, limit int, jsonOutput bool, deta
 			}
 			for i, server := range servers {
 				fmt.Printf("\n--- Server %d ---\n", i+1)
-				fmt.Printf("ID: %s\n", server.ID)
+				fmt.Printf("ID: %s\n", server.GetServerID())
+				if versionID := server.GetVersionID(); versionID != "" {
+					fmt.Printf("Version ID: %s\n", versionID)
+				}
 				fmt.Printf("Name: %s\n", server.Name)
 				fmt.Printf("Description: %s\n", server.Description)
 				if server.Status != "" {
@@ -678,12 +690,7 @@ func (c *MCPXClient) GetServer(id string, jsonOutput bool) error {
 		var detailWrapper ServerDetailWrapper
 		if err := json.Unmarshal(body, &detailWrapper); err == nil && (detailWrapper.Server.ID != "" || detailWrapper.RegistryMeta != nil) {
 			serverDetail = detailWrapper.Server
-			// Extract ID from registry metadata if not in server
-			if serverDetail.ID == "" && detailWrapper.RegistryMeta != nil {
-				if id, ok := detailWrapper.RegistryMeta["id"].(string); ok {
-					serverDetail.ID = id
-				}
-			}
+			// Server IDs are now extracted automatically via the _meta field in the Server struct
 		} else {
 			// Try legacy format
 			if err := json.Unmarshal(body, &serverDetail); err != nil {
@@ -698,7 +705,10 @@ func (c *MCPXClient) GetServer(id string, jsonOutput bool) error {
 			}
 			fmt.Println(string(prettyJSON))
 		} else {
-			fmt.Printf("ID: %s\n", serverDetail.ID)
+			fmt.Printf("ID: %s\n", serverDetail.GetServerID())
+			if versionID := serverDetail.GetVersionID(); versionID != "" {
+				fmt.Printf("Version ID: %s\n", versionID)
+			}
 			fmt.Printf("Name: %s\n", serverDetail.Name)
 			fmt.Printf("Description: %s\n", serverDetail.Description)
 			if serverDetail.Status != "" {
@@ -892,7 +902,7 @@ func createInteractiveServer() (*ServerDetail, error) {
 	fmt.Println("=== Interactive Server Configuration ===")
 	fmt.Println()
 
-	runtime := promptChoice("Select server runtime:", []string{"node", "python-pypi", "python-wheel", "binary", "docker", "gerrit"}, "node")
+	runtime := promptChoice("Select server runtime:", []string{"node", "python-pypi", "python-wheel", "binary", "docker", "oci", "mcpb", "gerrit"}, "node")
 
 	var data []byte
 	switch runtime {
@@ -906,6 +916,10 @@ func createInteractiveServer() (*ServerDetail, error) {
 		data = exampleServerBinaryJSON
 	case "docker":
 		data = exampleServerDockerJSON
+	case "oci":
+		data = exampleServerDockerJSON // Use docker example for OCI
+	case "mcpb":
+		data = exampleServerNPMJSON // Use npm example for MCPB
 	case "gerrit":
 		data = exampleServerGerritJSON
 	}
@@ -961,6 +975,10 @@ func createInteractiveServer() (*ServerDetail, error) {
 				pkg.Identifier = promptUser("Docker image name", pkg.Identifier)
 			case RegistryTypeDocker:
 				pkg.Identifier = promptUser("Docker image name", pkg.Identifier)
+			case RegistryTypeMCPB:
+				pkg.Identifier = promptUser("MCPB package identifier", pkg.Identifier)
+			case RegistryTypeNuGet:
+				pkg.Identifier = promptUser("NuGet package name", pkg.Identifier)
 			default:
 				pkg.Identifier = promptUser("Package identifier", pkg.Identifier)
 			}
@@ -1195,16 +1213,55 @@ func (c *MCPXClient) UpdateServer(serverID, serverFile, token string, jsonOutput
 	return nil
 }
 
-func (c *MCPXClient) DeleteServer(serverID, token string, jsonOutput bool) error {
+func (c *MCPXClient) DeleteServer(versionID, token string, jsonOutput bool) error {
 	if !jsonOutput {
-		fmt.Printf("=== Delete Server %s ===\n", serverID)
+		fmt.Printf("=== Delete Version %s ===\n", versionID)
 	}
 
-	endpoint := "/v0/servers/" + serverID
-
-	response, err := c.makeRequest("DELETE", endpoint, nil, token)
+	// First, get all servers to find the one with the matching version ID
+	servers, err := c.getAllServers()
 	if err != nil {
-		return fmt.Errorf("delete server request failed: %w", err)
+		return fmt.Errorf("failed to get servers list: %w", err)
+	}
+
+	// Find the server with the matching version ID
+	var targetServer *Server
+	for _, server := range servers {
+		if server.GetVersionID() == versionID {
+			targetServer = &server
+			break
+		}
+	}
+
+	if targetServer == nil {
+		return fmt.Errorf("version not found: %s", versionID)
+	}
+
+	// Use the edit endpoint to set status to deleted
+	endpoint := "/v0/servers/" + targetServer.GetServerID() + "?version=" + targetServer.Version
+
+	// Create a minimal request body for the edit endpoint
+	// Only include the fields that the server expects for editing
+	editRequest := map[string]interface{}{
+		"name":        targetServer.Name,
+		"description": targetServer.Description,
+		"status":      "deleted", // Set status to deleted
+		"repository": map[string]interface{}{
+			"url":    targetServer.Repository.URL,
+			"source": targetServer.Repository.Source,
+			"id":     targetServer.Repository.ID,
+		},
+		"version": targetServer.Version,
+	}
+
+	requestBody, err := json.Marshal(editRequest)
+	if err != nil {
+		return fmt.Errorf("failed to marshal request body: %w", err)
+	}
+
+	response, err := c.makeRequest("PUT", endpoint, requestBody, token)
+	if err != nil {
+		return fmt.Errorf("delete version request failed: %w", err)
 	}
 	defer func(Body io.ReadCloser) {
 		_ = Body.Close()
@@ -1216,20 +1273,51 @@ func (c *MCPXClient) DeleteServer(serverID, token string, jsonOutput bool) error
 	}
 
 	if response.StatusCode == http.StatusNotFound {
-		return fmt.Errorf("server not found: %s", serverID)
+		return fmt.Errorf("version not found: %s", versionID)
 	}
 
-	if response.StatusCode != http.StatusOK && response.StatusCode != http.StatusNoContent {
-		return fmt.Errorf("delete server failed with status %d: %s", response.StatusCode, string(body))
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("delete version failed with status %d: %s", response.StatusCode, string(body))
 	}
 
 	if jsonOutput {
-		fmt.Printf("{\"message\": \"Server %s deleted successfully\"}\n", serverID)
+		fmt.Printf("{\"message\": \"Version %s deleted successfully\"}\n", versionID)
 	} else {
-		fmt.Printf("✅ Server '%s' deleted successfully\n", serverID)
+		fmt.Printf("✅ Version '%s' deleted successfully\n", versionID)
 	}
 
 	return nil
+}
+
+func (c *MCPXClient) getAllServers() ([]Server, error) {
+	endpoint := "/v0/servers"
+
+	response, err := c.makeRequest("GET", endpoint, nil, "")
+	if err != nil {
+		return nil, err
+	}
+	defer func(Body io.ReadCloser) {
+		_ = Body.Close()
+	}(response.Body)
+
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if response.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to get servers list: %s", string(body))
+	}
+
+	var serversResp struct {
+		Servers []Server `json:"servers"`
+	}
+
+	if err := json.Unmarshal(body, &serversResp); err != nil {
+		return nil, fmt.Errorf("failed to parse servers list: %w", err)
+	}
+
+	return serversResp.Servers, nil
 }
 
 func printUsage() {
@@ -1251,9 +1339,9 @@ func printUsage() {
 	fmt.Println("  servers                             List all servers")
 	fmt.Println("  server <id> [--json]                Get server details by ID")
 	fmt.Println("  update <id> <server.json> [--token] [--json]  Update a server by ID")
-	fmt.Println("  delete <id> [--token] [--json]      Delete a server by ID (token optional)")
+	fmt.Println("  delete <version-id> [--token] [--json] Delete a server version by version ID (uses stored token if available)")
 	fmt.Println("  publish <server.json>               Publish a server to the registry")
-	fmt.Println("  publish --interactive               Interactive mode to create and publish a server (supports npm, PyPI, wheel, binary, docker)")
+	fmt.Println("  publish --interactive               Interactive mode to create and publish a server (supports npm, PyPI, wheel, binary, docker, oci, mcpb)")
 	fmt.Println()
 	fmt.Println("Authentication Flags:")
 	fmt.Println("  --method string      Authentication method (anonymous, github-oauth, github-oidc) (default: anonymous)")
@@ -1491,7 +1579,7 @@ func main() {
 		var token string
 		var jsonOutput bool
 		deleteFlags := flag.NewFlagSet("delete", flag.ExitOnError)
-		deleteFlags.StringVar(&token, "token", "", "Authentication token (optional)")
+		deleteFlags.StringVar(&token, "token", "", "Authentication token (optional, will use stored token if not provided)")
 		deleteFlags.BoolVar(&jsonOutput, "json", false, "Output result in JSON format")
 		var serverID string
 		var flagArgs []string
@@ -1504,12 +1592,24 @@ func main() {
 			}
 		}
 		if serverID == "" {
-			fmt.Println("Error: server ID is required")
-			fmt.Println("Usage: mcpx-cli delete <id> [--token <token>] [--json]")
+			fmt.Println("Error: version ID is required")
+			fmt.Println("Usage: mcpx-cli delete <version-id> [--token <token>] [--json]")
+			fmt.Println("Get version IDs with: mcpx-cli servers")
 			os.Exit(1)
 		}
 		if err := deleteFlags.Parse(flagArgs); err != nil {
 			log.Fatalf("Error parsing delete flags: %v", err)
+		}
+		if token == "" {
+			// Try to load stored token
+			authConfig, err := client.loadAuthConfig()
+			if err != nil || authConfig.Token == "" {
+				fmt.Println("Error: authentication token is required for delete operations")
+				fmt.Println("Usage: mcpx-cli delete <version-id> [--token <token>] [--json]")
+				fmt.Println("Get a token with: mcpx-cli login --method anonymous")
+				os.Exit(1)
+			}
+			token = authConfig.Token
 		}
 		if err := client.DeleteServer(serverID, token, jsonOutput); err != nil {
 			log.Fatalf("Delete server failed: %v", err)
