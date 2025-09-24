@@ -4,9 +4,11 @@ A command-line interface for interacting with the mcpx registry api. This CLI pr
 
 ## Features
 
-- **Authentication System**: Multiple authentication methods including GitHub OAuth, GitHub OIDC, and anonymous access
+- **Cross-Platform Compatibility**: Native support for Windows, macOS, and Linux with proper path handling
+- **Enhanced Authentication System**: Multiple authentication methods with automatic retry and token management
 - **Repository Source Support**: Full support for GitHub, GitLab, and Gerrit repositories with automatic URL validation
-- **Automatic Token Management**: Secure credential storage and automatic token refresh
+- **Automatic Token Management**: Secure credential storage with proactive expiration handling and automatic refresh
+- **Robust Error Handling**: Graceful handling of authentication failures with automatic retry mechanisms
 - **Health Check**: Verify api connectivity and status
 - **Server Listing**: Browse available MCP servers with pagination
 - **Server Details**: Get comprehensive information about specific servers
@@ -20,10 +22,10 @@ A command-line interface for interacting with the mcpx registry api. This CLI pr
 
 ## Authentication Methods
 
-The mcpx-cli supports multiple authentication methods that match the backend capabilities:
+The mcpx-cli supports multiple authentication methods with enhanced reliability and automatic retry capabilities:
 
-- **Anonymous**: Basic access without GitHub authentication
-- **GitHub OAuth**: Full GitHub OAuth flow for authenticated access
+- **Anonymous**: Basic access without GitHub authentication with automatic token refresh
+- **GitHub OAuth**: Full GitHub OAuth flow for authenticated access with retry on failures
 - **GitHub OIDC**: GitHub OpenID Connect for enterprise environments
 - **DNS**: Domain-based authentication (future implementation)
 - **HTTP**: HTTP-based authentication (future implementation)
@@ -612,7 +614,25 @@ JSON output example:
 
 #### Publish Server
 
-Publish a new MCP server to the registry. The CLI supports two modes and automatic authentication:
+Publish a new MCP server to the registry. The CLI supports automatic authentication and retry mechanisms for reliable publishing:
+
+##### Automatic Authentication
+
+The CLI now automatically handles authentication for publish operations:
+
+```bash
+# Publish with automatic authentication (recommended approach)
+mcpx-cli publish example-server.json
+
+# If no authentication token is available, the CLI will:
+# 1. Attempt anonymous authentication automatically
+# 2. Save the token for future use
+# 3. Retry the publish operation if it initially fails
+
+# Alternative: explicit authentication first
+mcpx-cli login --method github-oauth
+mcpx-cli publish example-server.json
+```
 
 ##### File-based Publishing
 
@@ -628,18 +648,21 @@ mcpx-cli publish <server.json> --token <auth-token>
 
 Example:
 ```bash
-# Login first (authentication is stored automatically)
+# Simplified approach with automatic authentication
+mcpx-cli publish example-server.json
+
+# The CLI will automatically:
+# - Check for existing authentication
+# - Attempt anonymous authentication if needed
+# - Retry publish operation on authentication failures
+# - Save tokens for future operations
+
+# Manual authentication (optional)
 mcpx-cli login --method github-oauth
-
-# Then publish (uses stored authentication)
 mcpx-cli publish example-server.json
 
-# Alternative: provide token explicitly (for GitHub namespaced servers)
+# Legacy explicit token method still supported
 mcpx-cli publish example-server.json --token ghp_your_github_token_here
-
-# For non-GitHub namespaces with anonymous authentication
-mcpx-cli login --method anonymous
-mcpx-cli publish example-server.json
 ```
 
 ##### Interactive Publishing
@@ -656,18 +679,17 @@ mcpx-cli publish --interactive --token <auth-token>
 
 Examples:
 ```bash
-# Login first with appropriate method
+# Simplified approach with automatic authentication
+mcpx-cli publish --interactive
+
+# The CLI will automatically handle authentication as needed
+
+# Manual authentication (optional)
 mcpx-cli login --method github-oauth
-
-# Then use interactive mode (uses stored authentication)
 mcpx-cli publish --interactive
 
-# Alternative: provide token explicitly for GitHub namespaced servers
+# Legacy explicit token method still supported
 mcpx-cli publish --interactive --token ghp_your_github_token_here
-
-# For non-GitHub projects with anonymous authentication
-mcpx-cli login --method anonymous
-mcpx-cli publish --interactive
 ```
 
 The interactive mode will:
@@ -733,7 +755,7 @@ Server ID: b1234567-8901-2345-6789-012345678901
 ```
 
 **Flags:**
-- `--token string`: Authentication token (required for `io.github.*` namespaced servers, optional for others)
+- `--token string`: Authentication token (optional, CLI will auto-authenticate if not provided)
 - `--interactive`: Enable interactive mode to create server configuration
 
 Example output:
@@ -1167,13 +1189,6 @@ Authentication credentials are automatically stored in `~/.mcpx-cli-config.json`
   "expires_at": 1693612800
 }
 ```
-
-### Security Notes
-
-- **File Permissions**: The configuration file is created with `0600` permissions (readable only by the user)
-- **Token Expiration**: Tokens are automatically checked for expiration before use
-- **Automatic Cleanup**: Expired tokens are automatically removed from the configuration
-- **Manual Cleanup**: Use `mcpx-cli logout` to clear stored credentials
 
 ### Supported Authentication Methods
 

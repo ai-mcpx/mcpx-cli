@@ -274,9 +274,13 @@ func NewMCPXClient(baseURL string) *MCPXClient {
 
 // Authentication helper methods
 func (c *MCPXClient) saveAuthConfig(config AuthConfig) error {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return fmt.Errorf("failed to get home directory: %w", err)
+	homeDir := os.Getenv("HOME")
+	if homeDir == "" {
+		var err error
+		homeDir, err = os.UserHomeDir()
+		if err != nil {
+			return fmt.Errorf("failed to get home directory: %w", err)
+		}
 	}
 
 	configPath := filepath.Join(homeDir, configFileName)
@@ -290,9 +294,13 @@ func (c *MCPXClient) saveAuthConfig(config AuthConfig) error {
 
 func (c *MCPXClient) loadAuthConfig() (AuthConfig, error) {
 	var config AuthConfig
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return config, fmt.Errorf("failed to get home directory: %w", err)
+	homeDir := os.Getenv("HOME")
+	if homeDir == "" {
+		var err error
+		homeDir, err = os.UserHomeDir()
+		if err != nil {
+			return config, fmt.Errorf("failed to get home directory: %w", err)
+		}
 	}
 
 	configPath := filepath.Join(homeDir, configFileName)
@@ -312,7 +320,7 @@ func (c *MCPXClient) loadAuthConfig() (AuthConfig, error) {
 	// Check if token is expired
 	// Add a small buffer (60 seconds) to account for clock differences between client and server
 	currentTime := time.Now().Unix()
-	if config.ExpiresAt > 0 && currentTime > (config.ExpiresAt+60) {
+	if config.ExpiresAt > 0 && currentTime > (config.ExpiresAt-60) {
 		return AuthConfig{}, nil // Return empty config if expired
 	}
 
@@ -320,9 +328,13 @@ func (c *MCPXClient) loadAuthConfig() (AuthConfig, error) {
 }
 
 func (c *MCPXClient) clearAuthConfig() error {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return fmt.Errorf("failed to get home directory: %w", err)
+	homeDir := os.Getenv("HOME")
+	if homeDir == "" {
+		var err error
+		homeDir, err = os.UserHomeDir()
+		if err != nil {
+			return fmt.Errorf("failed to get home directory: %w", err)
+		}
 	}
 
 	configPath := filepath.Join(homeDir, configFileName)
@@ -351,16 +363,17 @@ func (c *MCPXClient) makeRequest(method, endpoint string, body []byte, token str
 	}
 
 	// Use provided token or auto-load from config
-	if token != "" {
-		req.Header.Set("Authorization", "Bearer "+token)
-	} else {
+	authToken := token
+	if authToken == "" {
 		config, err := c.loadAuthConfig()
 		if err != nil {
 			return nil, fmt.Errorf("failed to load auth config: %w", err)
 		}
-		if config.Token != "" {
-			req.Header.Set("Authorization", "Bearer "+config.Token)
-		}
+		authToken = config.Token
+	}
+
+	if authToken != "" {
+		req.Header.Set("Authorization", "Bearer "+authToken)
 	}
 
 	req.Header.Set("User-Agent", "mcpx-cli/1.0")
@@ -814,6 +827,18 @@ func (c *MCPXClient) PublishServer(serverFile string, token string) error {
 		return fmt.Errorf("authentication token is required for GitHub namespaced servers (io.github.*)")
 	}
 
+	// If no token provided, check if we have a valid stored token
+	if token == "" {
+		config, err := c.loadAuthConfig()
+		if err != nil || config.Token == "" {
+			// Try to auto-authenticate anonymously
+			fmt.Println("No valid authentication found. Attempting anonymous authentication...")
+			if err := c.loginAnonymous(); err != nil {
+				return fmt.Errorf("failed to authenticate: %w", err)
+			}
+		}
+	}
+
 	// Send the server data directly as expected by the API
 	resp, err := c.makeRequest("POST", "/v0/publish", data, token)
 	if err != nil {
@@ -854,6 +879,48 @@ func (c *MCPXClient) PublishServer(serverFile string, token string) error {
 					fmt.Printf("Response: %s\n", string(body))
 				}
 			}
+		}
+	} else if resp.StatusCode == 422 && token == "" {
+		// If we get 422 with no token, try to re-authenticate and retry once
+		fmt.Println("Authentication failed. Trying to re-authenticate...")
+		if err := c.loginAnonymous(); err != nil {
+			return fmt.Errorf("failed to re-authenticate: %w", err)
+		}
+
+		// Get the fresh token for retry
+		config, err := c.loadAuthConfig()
+		if err != nil {
+			return fmt.Errorf("failed to load fresh auth config: %w", err)
+		}
+
+		// Retry the request with fresh token
+		retryResp, err := c.makeRequest("POST", "/v0/publish", data, config.Token)
+		if err != nil {
+			return fmt.Errorf("retry publish request failed: %w", err)
+		}
+		defer func(Body io.ReadCloser) {
+			_ = Body.Close()
+		}(retryResp.Body)
+
+		retryBody, err := io.ReadAll(retryResp.Body)
+		if err != nil {
+			return fmt.Errorf("failed to read retry response: %w", err)
+		}
+
+		fmt.Printf("Retry Status Code: %d\n", retryResp.StatusCode)
+
+		if retryResp.StatusCode == 200 || retryResp.StatusCode == 201 {
+			// Try to parse as PublishResponse first
+			var publishResp PublishResponse
+			if err := json.Unmarshal(retryBody, &publishResp); err == nil && publishResp.Message != "" {
+				fmt.Printf("✅ Success: %s\n", publishResp.Message)
+				fmt.Printf("Server ID: %s\n", publishResp.ID)
+			} else {
+				fmt.Printf("✅ Success\n")
+				fmt.Printf("Response: %s\n", string(retryBody))
+			}
+		} else {
+			fmt.Printf("❌ Retry failed: %s\n", string(retryBody))
 		}
 	} else {
 		fmt.Printf("❌ Error: %s\n", string(body))

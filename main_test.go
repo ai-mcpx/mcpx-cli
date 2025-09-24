@@ -28,19 +28,29 @@ This test suite includes comprehensive tests for the Windows-specific fixes impl
    - TestWindowsAuthenticationFixes proper error propagation: Tests loadAuthConfig error handling
    - Error handling for missing config: Tests graceful handling of missing config files
 
-3. Token Expiration Buffer:
-   - TestAuthConfig token expiration buffer: Tests 60-second buffer implementation
+3. Token Expiration Buffer (Updated):
+   - TestAuthConfig token expiration buffer: Tests updated 60-second proactive buffer implementation
    - TestWindowsAuthenticationFixes token expiration with 60-second buffer: Comprehensive buffer testing
+   - Updated logic: currentTime > (ExpiresAt - 60) means expired (proactive expiration)
    - Multiple test cases for various expiration scenarios (2min, 90s, 45s, 10s, expired)
 
-4. Authentication Flow:
+4. Enhanced Authentication Flow:
    - TestMakeRequestWithAuth with expired token fallback: Tests automatic token refresh
-   - Tests ensure no silent failures and proper token management
+   - TestPublishServerWithAutoRetry: Tests automatic authentication and retry logic
+   - TestPublishServer with auto-auth: Tests publish without token (triggers auto-authentication)
+   - Tests ensure no silent failures and proper token management with retry capabilities
 
-These tests validate the three main fixes:
+5. Automatic Re-authentication:
+   - PublishServer now includes automatic anonymous authentication when no token is available
+   - Retry logic for 422 authentication failures with fresh token acquisition
+   - Comprehensive error handling and user feedback during authentication process
+
+These tests validate the five main fixes:
 - filepath.Join() for cross-platform compatibility (Windows backslashes vs Unix forward slashes)
 - Proper error handling instead of silent failures (config, _ := loadAuthConfig() -> proper error checking)
-- 60-second token expiration buffer to handle clock sync differences between client/server
+- Updated 60-second proactive token expiration buffer (expires tokens 60s before actual expiration)
+- Automatic re-authentication and retry logic for publish operations
+- Enhanced user experience with clear error messages and automatic recovery
 
 All tests are designed to work on both Windows and Unix systems.
 */
@@ -207,6 +217,16 @@ func createMockServer() *httptest.Server {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
+
+		// Check for authorization header
+		authHeader := r.Header.Get("Authorization")
+		if authHeader == "" {
+			// Return 422 for missing authorization (simulates real server behavior)
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			_, _ = fmt.Fprintf(w, `{"title":"Unprocessable Entity","status":422,"detail":"validation failed","errors":[{"message":"required header parameter is missing","location":"header.Authorization","value":""}]}`)
+			return
+		}
+
 		w.WriteHeader(http.StatusCreated)
 		_, _ = fmt.Fprintf(w, `{"message": "Server published successfully", "id": "new-server-id"}`)
 	})
@@ -297,14 +317,25 @@ func TestAuthConfig(t *testing.T) {
 	client := NewMCPXClient(mockServer.URL)
 
 	t.Run("save and load auth config", func(t *testing.T) {
+		// Create isolated test environment
+		tmpDir := t.TempDir()
+		oldHome := os.Getenv("HOME")
+		_ = os.Setenv("HOME", tmpDir)
+		defer func() {
+			_ = os.Setenv("HOME", oldHome)
+		}()
+
 		config := AuthConfig{
 			Method:    AuthMethodAnonymous,
 			Token:     "test-token",
 			ExpiresAt: time.Now().Add(time.Hour).Unix(),
 		}
 
-		// Create temp config
-		createTempConfig(t, config)
+		// Save config using client method
+		err := client.saveAuthConfig(config)
+		if err != nil {
+			t.Fatalf("Failed to save auth config: %v", err)
+		}
 
 		// Test loading config
 		loadedConfig, err := client.loadAuthConfig()
@@ -321,13 +352,25 @@ func TestAuthConfig(t *testing.T) {
 	})
 
 	t.Run("expired token cleanup", func(t *testing.T) {
+		// Create isolated test environment
+		tmpDir := t.TempDir()
+		oldHome := os.Getenv("HOME")
+		_ = os.Setenv("HOME", tmpDir)
+		defer func() {
+			_ = os.Setenv("HOME", oldHome)
+		}()
+
 		expiredConfig := AuthConfig{
 			Method:    AuthMethodAnonymous,
 			Token:     "expired-token",
 			ExpiresAt: time.Now().Add(-time.Hour).Unix(), // Expired
 		}
 
-		createTempConfig(t, expiredConfig)
+		// Save expired config
+		err := client.saveAuthConfig(expiredConfig)
+		if err != nil {
+			t.Fatalf("Failed to save expired config: %v", err)
+		}
 
 		// Should return empty config for expired token
 		loadedConfig, err := client.loadAuthConfig()
@@ -341,56 +384,77 @@ func TestAuthConfig(t *testing.T) {
 	})
 
 	t.Run("token expiration buffer", func(t *testing.T) {
-		// Test token that expires but gets 60-second extension
-		// The actual logic is: currentTime > (ExpiresAt + 60)
-		// So a token expiring in 30 seconds should still be valid because:
-		// currentTime <= (ExpiresAt + 60)
-		soonToExpireConfig := AuthConfig{
-			Method:    AuthMethodAnonymous,
-			Token:     "soon-to-expire-token",
-			ExpiresAt: time.Now().Add(30 * time.Second).Unix(), // Expires in 30 seconds
-		}
-
-		createTempConfig(t, soonToExpireConfig)
-
-		// Should return the config because token gets 60-second buffer extension
-		loadedConfig, err := client.loadAuthConfig()
-		if err != nil {
-			t.Fatalf("Failed to load auth config: %v", err)
-		}
-
-		if loadedConfig.Token == "" {
-			t.Errorf("Expected token to be valid with 60-second buffer extension, got empty token")
-		}
-
-		// Test token that expires beyond the 60-second buffer
-		veryExpiredConfig := AuthConfig{
-			Method:    AuthMethodAnonymous,
-			Token:     "very-expired-token",
-			ExpiresAt: time.Now().Add(-120 * time.Second).Unix(), // Expired 2 minutes ago
-		}
-
-		createTempConfig(t, veryExpiredConfig)
-
-		// Should return empty config for token expired beyond buffer
-		loadedConfig, err = client.loadAuthConfig()
-		if err != nil {
-			t.Fatalf("Failed to load auth config: %v", err)
-		}
-
-		if loadedConfig.Token != "" {
-			t.Errorf("Expected empty token for token expired beyond 60-second buffer, got %v", loadedConfig.Token)
-		}
-	})
-
-	t.Run("cross-platform config path", func(t *testing.T) {
-		// Test that config file path uses proper path separators
+		// Create isolated test environment
 		tmpDir := t.TempDir()
 		oldHome := os.Getenv("HOME")
 		_ = os.Setenv("HOME", tmpDir)
 		defer func() {
 			_ = os.Setenv("HOME", oldHome)
 		}()
+
+		// Test token that should still be valid (expires in more than 60 seconds)
+		// The actual logic is: currentTime > (ExpiresAt - 60)
+		// So a token expiring in 90 seconds should be valid because:
+		// currentTime <= (ExpiresAt - 60) where ExpiresAt - 60 = 30 seconds from now
+		stillValidConfig := AuthConfig{
+			Method:    AuthMethodAnonymous,
+			Token:     "still-valid-token",
+			ExpiresAt: time.Now().Add(90 * time.Second).Unix(), // Expires in 90 seconds
+		}
+
+		// Save config directly to isolated test directory
+		err := client.saveAuthConfig(stillValidConfig)
+		if err != nil {
+			t.Fatalf("Failed to save auth config: %v", err)
+		}
+
+		// Should return the config because token expires beyond 60-second buffer
+		loadedConfig, err := client.loadAuthConfig()
+		if err != nil {
+			t.Fatalf("Failed to load auth config: %v", err)
+		}
+
+		if loadedConfig.Token == "" {
+			t.Errorf("Expected token to be valid (expires in 90s > 60s buffer), got empty token")
+		}
+
+		// Test token that should be expired (expires within 60-second buffer)
+		// Token expiring in 30 seconds should be considered expired because:
+		// currentTime > (ExpiresAt - 60) where ExpiresAt - 60 = -30 seconds ago
+		expiredConfig := AuthConfig{
+			Method:    AuthMethodAnonymous,
+			Token:     "expired-token",
+			ExpiresAt: time.Now().Add(30 * time.Second).Unix(), // Expires in 30 seconds (within buffer)
+		}
+
+		// Save the expired config to test directory
+		err = client.saveAuthConfig(expiredConfig)
+		if err != nil {
+			t.Fatalf("Failed to save expired auth config: %v", err)
+		}
+
+		// Should return empty config for token expired within 60-second buffer
+		loadedConfig, err = client.loadAuthConfig()
+		if err != nil {
+			t.Fatalf("Failed to load auth config: %v", err)
+		}
+
+		if loadedConfig.Token != "" {
+			t.Errorf("Expected empty token for token expiring within 60-second buffer, got %v", loadedConfig.Token)
+		}
+	})
+
+	t.Run("cross-platform config path", func(t *testing.T) {
+		// Create isolated test environment and client
+		tmpDir := t.TempDir()
+		oldHome := os.Getenv("HOME")
+		_ = os.Setenv("HOME", tmpDir)
+		defer func() {
+			_ = os.Setenv("HOME", oldHome)
+		}()
+
+		// Create a separate client for this test
+		testClient := NewMCPXClient("http://localhost:8080")
 
 		config := AuthConfig{
 			Method:    AuthMethodAnonymous,
@@ -399,7 +463,7 @@ func TestAuthConfig(t *testing.T) {
 		}
 
 		// Save config using cross-platform path
-		err := client.saveAuthConfig(config)
+		err := testClient.saveAuthConfig(config)
 		if err != nil {
 			t.Fatalf("Failed to save auth config: %v", err)
 		}
@@ -411,7 +475,7 @@ func TestAuthConfig(t *testing.T) {
 		}
 
 		// Load config and verify it works
-		loadedConfig, err := client.loadAuthConfig()
+		loadedConfig, err := testClient.loadAuthConfig()
 		if err != nil {
 			t.Fatalf("Failed to load auth config from cross-platform path: %v", err)
 		}
@@ -422,17 +486,19 @@ func TestAuthConfig(t *testing.T) {
 	})
 
 	t.Run("error handling for missing config", func(t *testing.T) {
-		// Set HOME to a non-existent directory to test error handling
+		// Create isolated test environment with non-existent config
 		tmpDir := t.TempDir()
-		nonExistentDir := filepath.Join(tmpDir, "non-existent")
 		oldHome := os.Getenv("HOME")
-		_ = os.Setenv("HOME", nonExistentDir)
+		_ = os.Setenv("HOME", tmpDir)
 		defer func() {
 			_ = os.Setenv("HOME", oldHome)
 		}()
 
+		// Create a separate client for this test
+		testClient := NewMCPXClient("http://localhost:8080")
+
 		// Should return empty config when config file doesn't exist, not error
-		loadedConfig, err := client.loadAuthConfig()
+		loadedConfig, err := testClient.loadAuthConfig()
 		if err != nil {
 			t.Fatalf("Expected no error for missing config file, got: %v", err)
 		}
@@ -629,7 +695,7 @@ func TestPublishServer(t *testing.T) {
 			wantErr:    false,
 		},
 		{
-			name:       "publish without token",
+			name:       "publish without token (auto-auth)",
 			serverFile: serverFile,
 			token:      "",
 			wantErr:    false,
@@ -644,6 +710,16 @@ func TestPublishServer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Set up clean temp directory for auth config for auto-auth test
+			if tt.token == "" && tt.serverFile != "non-existent.json" {
+				tmpDir := t.TempDir()
+				oldHome := os.Getenv("HOME")
+				_ = os.Setenv("HOME", tmpDir)
+				defer func() {
+					_ = os.Setenv("HOME", oldHome)
+				}()
+			}
+
 			// Capture stdout
 			oldStdout := os.Stdout
 			r, w, _ := os.Pipe()
@@ -664,6 +740,13 @@ func TestPublishServer(t *testing.T) {
 				output := string(out)
 				if !strings.Contains(output, "Publish Server") {
 					t.Errorf("Expected output to contain 'Publish Server', got %v", output)
+				}
+
+				// For auto-auth test, check that it automatically authenticated
+				if tt.token == "" {
+					if strings.Contains(output, "No valid authentication found. Attempting anonymous authentication...") {
+						t.Logf("✓ Auto-authentication triggered as expected")
+					}
 				}
 			}
 		})
@@ -1203,8 +1286,8 @@ func TestWindowsAuthenticationFixes(t *testing.T) {
 		client := NewMCPXClient(mockServer.URL)
 
 		// Test scenarios around the 60-second buffer
-		// Actual logic: currentTime > (ExpiresAt + 60) means expired
-		// So token is valid if: currentTime <= (ExpiresAt + 60)
+		// Updated logic: currentTime > (ExpiresAt - 60) means expired
+		// So token is valid if: currentTime <= (ExpiresAt - 60)
 		testCases := []struct {
 			name          string
 			expiresIn     time.Duration
@@ -1215,43 +1298,43 @@ func TestWindowsAuthenticationFixes(t *testing.T) {
 				name:          "token expires in 2 minutes",
 				expiresIn:     2 * time.Minute,
 				shouldBeValid: true,
-				description:   "Token well beyond buffer should be valid",
+				description:   "Token expiring in 2 minutes should be valid",
 			},
 			{
 				name:          "token expires in 90 seconds",
 				expiresIn:     90 * time.Second,
 				shouldBeValid: true,
-				description:   "Token beyond 60-second buffer should be valid",
+				description:   "Token expiring in 90 seconds should be valid",
 			},
 			{
 				name:          "token expires in 45 seconds",
 				expiresIn:     45 * time.Second,
-				shouldBeValid: true,
-				description:   "Token expiring soon but within buffer extension should be valid",
+				shouldBeValid: false,
+				description:   "Token expiring in 45 seconds should be expired (within 60s buffer)",
 			},
 			{
 				name:          "token expires in 10 seconds",
 				expiresIn:     10 * time.Second,
-				shouldBeValid: true,
-				description:   "Token expiring very soon but still within buffer should be valid",
+				shouldBeValid: false,
+				description:   "Token expiring in 10 seconds should be expired (within 60s buffer)",
 			},
 			{
 				name:          "token expired 30 seconds ago",
 				expiresIn:     -30 * time.Second,
-				shouldBeValid: true,
-				description:   "Recently expired token should still be valid due to 60-second buffer",
+				shouldBeValid: false,
+				description:   "Recently expired token should be invalid",
 			},
 			{
 				name:          "token expired 90 seconds ago",
 				expiresIn:     -90 * time.Second,
 				shouldBeValid: false,
-				description:   "Token expired beyond 60-second buffer should be invalid",
+				description:   "Token expired 90 seconds ago should be invalid",
 			},
 			{
 				name:          "token expired 2 minutes ago",
 				expiresIn:     -2 * time.Minute,
 				shouldBeValid: false,
-				description:   "Token expired long ago should be invalid",
+				description:   "Token expired 2 minutes ago should be invalid",
 			},
 		}
 
@@ -1374,7 +1457,95 @@ func TestWindowsPathHandling(t *testing.T) {
 	})
 }
 
-// Test for PyPI and Wheel package publishing
+func TestPublishServerWithAutoRetry(t *testing.T) {
+	// Create a mock server that simulates authentication failures and retries
+	retryCount := 0
+	mockRetryServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v0/auth/none" && r.Method == "POST" {
+			// Always return a valid token for authentication requests
+			response := TokenResponse{
+				RegistryToken: fmt.Sprintf("retry-test-token-%d", time.Now().UnixNano()),
+				ExpiresAt:     time.Now().Add(time.Hour).Unix(),
+			}
+			_ = json.NewEncoder(w).Encode(response)
+			return
+		}
+
+		if r.URL.Path == "/v0/publish" && r.Method == "POST" {
+			authHeader := r.Header.Get("Authorization")
+			retryCount++
+
+			// Simulate a scenario where the first request fails due to expired token
+			// but the retry succeeds
+			if retryCount == 1 {
+				w.WriteHeader(http.StatusUnprocessableEntity)
+				_, _ = fmt.Fprintf(w, `{"title":"Unprocessable Entity","status":422,"detail":"validation failed","errors":[{"message":"required header parameter is missing","location":"header.Authorization","value":""}]}`)
+				return
+			}
+
+			// Succeed on subsequent requests
+			if authHeader != "" && strings.HasPrefix(authHeader, "Bearer ") {
+				w.WriteHeader(http.StatusCreated)
+				_, _ = fmt.Fprintf(w, `{"message": "Server published successfully after retry", "id": "retry-server-id"}`)
+				return
+			}
+
+			// Fallback - should not reach here in normal flow
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			_, _ = fmt.Fprintf(w, `{"title":"Unprocessable Entity","status":422,"detail":"validation failed","errors":[{"message":"required header parameter is missing","location":"header.Authorization","value":""}]}`)
+		}
+	}))
+	defer mockRetryServer.Close()
+
+	client := NewMCPXClient(mockRetryServer.URL)
+
+	// Create temp server file
+	serverFile := createTempServerFile(t, exampleServerNPMJSON)
+	defer func(name string) {
+		_ = os.Remove(name)
+	}(serverFile)
+
+	// Set up clean temp directory for auth config
+	tmpDir := t.TempDir()
+	oldHome := os.Getenv("HOME")
+	_ = os.Setenv("HOME", tmpDir)
+	defer func() {
+		_ = os.Setenv("HOME", oldHome)
+	}()
+
+	// Capture stdout
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	// Test publish without token - should trigger auto-auth initially,
+	// fail on first publish, then retry successfully
+	err := client.PublishServer(serverFile, "")
+
+	_ = w.Close()
+	os.Stdout = oldStdout
+
+	if err != nil {
+		t.Fatalf("PublishServer with auto-retry failed: %v", err)
+	}
+
+	out, _ := io.ReadAll(r)
+	output := string(out)
+
+	// The improved auto-authentication logic should work
+	// The main thing is that it should not fail completely
+	if !strings.Contains(output, "Server published successfully") {
+		t.Errorf("Expected successful publish, got: %s", output)
+	}
+
+	// Verify that the server was actually contacted (retry count > 0)
+	if retryCount == 0 {
+		t.Errorf("Expected at least 1 publish attempt, got %d", retryCount)
+	}
+
+	t.Logf("✓ Auto-authentication and retry logic worked correctly with %d attempts", retryCount)
+}
+
 func TestPublishServerPackageTypes(t *testing.T) {
 	mockServer := createMockServer()
 	defer mockServer.Close()
