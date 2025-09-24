@@ -11,6 +11,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -278,7 +279,7 @@ func (c *MCPXClient) saveAuthConfig(config AuthConfig) error {
 		return fmt.Errorf("failed to get home directory: %w", err)
 	}
 
-	configPath := fmt.Sprintf("%s/%s", homeDir, configFileName)
+	configPath := filepath.Join(homeDir, configFileName)
 	data, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal config: %w", err)
@@ -294,7 +295,7 @@ func (c *MCPXClient) loadAuthConfig() (AuthConfig, error) {
 		return config, fmt.Errorf("failed to get home directory: %w", err)
 	}
 
-	configPath := fmt.Sprintf("%s/%s", homeDir, configFileName)
+	configPath := filepath.Join(homeDir, configFileName)
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -309,7 +310,9 @@ func (c *MCPXClient) loadAuthConfig() (AuthConfig, error) {
 	}
 
 	// Check if token is expired
-	if config.ExpiresAt > 0 && time.Now().Unix() > config.ExpiresAt {
+	// Add a small buffer (60 seconds) to account for clock differences between client and server
+	currentTime := time.Now().Unix()
+	if config.ExpiresAt > 0 && currentTime > (config.ExpiresAt+60) {
 		return AuthConfig{}, nil // Return empty config if expired
 	}
 
@@ -322,7 +325,7 @@ func (c *MCPXClient) clearAuthConfig() error {
 		return fmt.Errorf("failed to get home directory: %w", err)
 	}
 
-	configPath := fmt.Sprintf("%s/%s", homeDir, configFileName)
+	configPath := filepath.Join(homeDir, configFileName)
 	if err := os.Remove(configPath); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to remove config file: %w", err)
 	}
@@ -351,7 +354,10 @@ func (c *MCPXClient) makeRequest(method, endpoint string, body []byte, token str
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	} else {
-		config, _ := c.loadAuthConfig()
+		config, err := c.loadAuthConfig()
+		if err != nil {
+			return nil, fmt.Errorf("failed to load auth config: %w", err)
+		}
 		if config.Token != "" {
 			req.Header.Set("Authorization", "Bearer "+config.Token)
 		}
