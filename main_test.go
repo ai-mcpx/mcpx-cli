@@ -144,70 +144,145 @@ func createMockServer() *httptest.Server {
 
 	// Individual server endpoint
 	mux.HandleFunc("/v0/servers/", func(w http.ResponseWriter, r *http.Request) {
-		serverID := strings.TrimPrefix(r.URL.Path, "/v0/servers/")
+		path := strings.TrimPrefix(r.URL.Path, "/v0/servers/")
 
-		switch r.Method {
-		case "GET":
-			// Mock server detail - return ServerDetail directly for delete tests
-			server := ServerDetail{
-				Server: Server{
-					ID:          serverID,
-					Name:        "io.test/server1",
-					Description: "Test server 1 detailed",
-					Status:      "active",
-					Repository: Repository{
-						URL:    "https://github.com/test/server1",
-						Source: "github",
-						ID:     "test/server1",
-					},
-					VersionDetail: VersionDetail{
-						Version:     "1.0.0",
-						ReleaseDate: "2023-01-01T00:00:00Z",
-						IsLatest:    true,
-					},
-					Meta: &ServerMeta{
-						Official: &RegistryExtensions{
-							ServerID:  "58031f85-792f-4c22-9d76-b4dd01e287aa",
-							VersionID: serverID,
+		// Handle different URL patterns
+		if strings.Contains(path, "/versions/") {
+			// New format: /v0/servers/{serverName}/versions/{version}
+			parts := strings.Split(path, "/versions/")
+			if len(parts) != 2 {
+				http.Error(w, "Invalid URL format", http.StatusBadRequest)
+				return
+			}
+			serverName := parts[0]
+			version := parts[1]
+
+			switch r.Method {
+			case "GET":
+				// Mock server detail by name
+				server := ServerDetail{
+					Server: Server{
+						ID:          "58031f85-792f-4c22-9d76-b4dd01e287aa",
+						Name:        serverName,
+						Description: "Test server detailed",
+						Status:      "active",
+						Repository: Repository{
+							URL:    "https://github.com/test/server",
+							Source: "github",
+							ID:     "test/server",
+						},
+						Version: version,
+						VersionDetail: VersionDetail{
+							Version:     version,
+							ReleaseDate: "2023-01-01T00:00:00Z",
+							IsLatest:    true,
+						},
+						Meta: &ServerMeta{
+							Official: &RegistryExtensions{
+								ServerID:  "58031f85-792f-4c22-9d76-b4dd01e287aa",
+								VersionID: "58031f85-792f-4c22-9d76-b4dd01e287aa-v1",
+							},
 						},
 					},
-				},
-				Packages: []Package{
-					{
-						Identifier:   "@test/server1",
-						Version:      "1.0.0",
-						RegistryType: "npm",
+					Packages: []Package{
+						{
+							Identifier:   "@test/server",
+							Version:      version,
+							RegistryType: "npm",
+						},
 					},
-				},
-				Remotes: []Remote{
-					{
-						Type: "stdio",
+					Remotes: []Remote{
+						{
+							Type: "stdio",
+						},
 					},
-				},
-			}
-			_ = json.NewEncoder(w).Encode(server)
-		case "PUT":
-			// Mock server update/delete
-			// Check if this is a delete operation (status set to deleted)
-			var requestBody map[string]interface{}
-			body, _ := io.ReadAll(r.Body)
-			_ = json.Unmarshal(body, &requestBody)
+				}
+				_ = json.NewEncoder(w).Encode(server)
+			case "PUT":
+				// Mock server update/delete by name and version
+				var requestBody map[string]interface{}
+				body, _ := io.ReadAll(r.Body)
+				_ = json.Unmarshal(body, &requestBody)
 
-			if status, ok := requestBody["status"].(string); ok && status == "deleted" {
-				// This is a delete operation
-				w.WriteHeader(http.StatusOK)
-				_, _ = fmt.Fprintf(w, `{"message": "Version %s deleted successfully"}`, serverID)
-			} else {
-				// This is a regular update
-				w.WriteHeader(http.StatusOK)
-				_, _ = fmt.Fprintf(w, `{"message": "Server %s updated successfully"}`, serverID)
+				if status, ok := requestBody["status"].(string); ok && status == "deleted" {
+					// This is a delete operation
+					w.WriteHeader(http.StatusOK)
+					_, _ = fmt.Fprintf(w, `{"message": "Server version %s/%s deleted successfully"}`, serverName, version)
+				} else {
+					// This is a regular update
+					w.WriteHeader(http.StatusOK)
+					_, _ = fmt.Fprintf(w, `{"message": "Server %s updated successfully"}`, serverName)
+				}
+			default:
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			}
-		case "DELETE":
-			// Mock server deletion
-			w.WriteHeader(http.StatusOK)
-			_, _ = fmt.Fprintf(w, `{"message": "Server %s deleted successfully"}`, serverID)
-		default:
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		} else {
+			// Legacy format: /v0/servers/{id} - keep for backward compatibility
+			serverID := path
+
+			switch r.Method {
+			case "GET":
+				// Mock server detail - return ServerDetail directly for delete tests
+				server := ServerDetail{
+					Server: Server{
+						ID:          serverID,
+						Name:        "io.test/server1",
+						Description: "Test server 1 detailed",
+						Status:      "active",
+						Repository: Repository{
+							URL:    "https://github.com/test/server1",
+							Source: "github",
+							ID:     "test/server1",
+						},
+						VersionDetail: VersionDetail{
+							Version:     "1.0.0",
+							ReleaseDate: "2023-01-01T00:00:00Z",
+							IsLatest:    true,
+						},
+						Meta: &ServerMeta{
+							Official: &RegistryExtensions{
+								ServerID:  "58031f85-792f-4c22-9d76-b4dd01e287aa",
+								VersionID: serverID,
+							},
+						},
+					},
+					Packages: []Package{
+						{
+							Identifier:   "@test/server1",
+							Version:      "1.0.0",
+							RegistryType: "npm",
+						},
+					},
+					Remotes: []Remote{
+						{
+							Type: "stdio",
+						},
+					},
+				}
+				_ = json.NewEncoder(w).Encode(server)
+			case "PUT":
+				// Mock server update/delete
+				// Check if this is a delete operation (status set to deleted)
+				var requestBody map[string]interface{}
+				body, _ := io.ReadAll(r.Body)
+				_ = json.Unmarshal(body, &requestBody)
+
+				if status, ok := requestBody["status"].(string); ok && status == "deleted" {
+					// This is a delete operation
+					w.WriteHeader(http.StatusOK)
+					_, _ = fmt.Fprintf(w, `{"message": "Version %s deleted successfully"}`, serverID)
+				} else {
+					// This is a regular update
+					w.WriteHeader(http.StatusOK)
+					_, _ = fmt.Fprintf(w, `{"message": "Server %s updated successfully"}`, serverID)
+				}
+			case "DELETE":
+				// Mock server deletion
+				w.WriteHeader(http.StatusOK)
+				_, _ = fmt.Fprintf(w, `{"message": "Server %s deleted successfully"}`, serverID)
+			default:
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			}
 		}
 	})
 
@@ -616,22 +691,22 @@ func TestGetServer(t *testing.T) {
 	client := NewMCPXClient(mockServer.URL)
 
 	tests := []struct {
-		name     string
-		serverID string
-		json     bool
-		wantErr  bool
+		name       string
+		serverName string
+		json       bool
+		wantErr    bool
 	}{
 		{
-			name:     "get server detail",
-			serverID: "test-server-1",
-			json:     false,
-			wantErr:  false,
+			name:       "get server detail",
+			serverName: "io.modelcontextprotocol.anonymous/test-server",
+			json:       false,
+			wantErr:    false,
 		},
 		{
-			name:     "get server json",
-			serverID: "test-server-1",
-			json:     true,
-			wantErr:  false,
+			name:       "get server json",
+			serverName: "io.modelcontextprotocol.anonymous/test-server",
+			json:       true,
+			wantErr:    false,
 		},
 	}
 
@@ -642,7 +717,7 @@ func TestGetServer(t *testing.T) {
 			r, w, _ := os.Pipe()
 			os.Stdout = w
 
-			err := client.GetServer(tt.serverID, tt.json)
+			err := client.GetServer(tt.serverName, tt.json)
 
 			_ = w.Close()
 			os.Stdout = oldStdout
@@ -767,7 +842,7 @@ func TestUpdateServer(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		serverID   string
+		serverName string
 		serverFile string
 		token      string
 		json       bool
@@ -775,7 +850,7 @@ func TestUpdateServer(t *testing.T) {
 	}{
 		{
 			name:       "update server",
-			serverID:   "test-server-1",
+			serverName: "io.modelcontextprotocol.anonymous/test-server",
 			serverFile: serverFile,
 			token:      "test-token",
 			json:       false,
@@ -783,7 +858,7 @@ func TestUpdateServer(t *testing.T) {
 		},
 		{
 			name:       "update server json output",
-			serverID:   "test-server-1",
+			serverName: "io.modelcontextprotocol.anonymous/test-server",
 			serverFile: serverFile,
 			token:      "test-token",
 			json:       true,
@@ -798,7 +873,7 @@ func TestUpdateServer(t *testing.T) {
 			r, w, _ := os.Pipe()
 			os.Stdout = w
 
-			err := client.UpdateServer(tt.serverID, tt.serverFile, tt.token, tt.json)
+			err := client.UpdateServer(tt.serverName, tt.serverFile, tt.token, tt.json)
 
 			_ = w.Close()
 			os.Stdout = oldStdout
@@ -833,25 +908,28 @@ func TestDeleteServer(t *testing.T) {
 	client := NewMCPXClient(mockServer.URL)
 
 	tests := []struct {
-		name     string
-		serverID string
-		token    string
-		json     bool
-		wantErr  bool
+		name       string
+		serverName string
+		version    string
+		token      string
+		json       bool
+		wantErr    bool
 	}{
 		{
-			name:     "delete server",
-			serverID: "58031f85-792f-4c22-9d76-b4dd01e287aa-v1", // Use version ID
-			token:    "test-token",
-			json:     false,
-			wantErr:  false,
+			name:       "delete server",
+			serverName: "io.modelcontextprotocol.anonymous/test-server",
+			version:    "1.0.0",
+			token:      "test-token",
+			json:       false,
+			wantErr:    false,
 		},
 		{
-			name:     "delete server json output",
-			serverID: "58031f85-792f-4c22-9d76-b4dd01e287aa-v1", // Use version ID
-			token:    "test-token",
-			json:     true,
-			wantErr:  false,
+			name:       "delete server json output",
+			serverName: "io.modelcontextprotocol.anonymous/test-server",
+			version:    "1.0.0",
+			token:      "test-token",
+			json:       true,
+			wantErr:    false,
 		},
 	}
 
@@ -862,7 +940,7 @@ func TestDeleteServer(t *testing.T) {
 			r, w, _ := os.Pipe()
 			os.Stdout = w
 
-			err := client.DeleteServer(tt.serverID, tt.token, tt.json)
+			err := client.DeleteServer(tt.serverName, tt.version, tt.token, tt.json)
 
 			_ = w.Close()
 			os.Stdout = oldStdout
@@ -882,8 +960,8 @@ func TestDeleteServer(t *testing.T) {
 				}
 			} else {
 				// Should contain formatted output
-				if !strings.Contains(output, "Delete Version") {
-					t.Errorf("Expected formatted output to contain 'Delete Version', got %v", output)
+				if !strings.Contains(output, "Delete Server Version") {
+					t.Errorf("Expected formatted output to contain 'Delete Server Version', got %v", output)
 				}
 			}
 		})

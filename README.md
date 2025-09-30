@@ -15,7 +15,7 @@ A command-line interface for interacting with the mcpx registry api. This CLI pr
 - **Detailed Server Information**: Retrieve complete server data including packages and remotes
 - **Server Publishing**: Publish new MCP servers to the registry
 - **Server Updates**: Update existing MCP servers in the registry
-- **Server Deletion**: Delete server versions from the registry using version IDs
+- **Server Deletion**: Delete server versions from the registry using server names and versions
 - **Interactive Mode**: Create server configurations interactively with Node.js, Python PyPI, Python Wheel, Binary, Docker, OCI, and MCPB templates
 - **JSON Output**: All responses are formatted for easy reading with optional detailed information
 - **Configurable Base URL**: Target different mcpx registry instances
@@ -32,17 +32,17 @@ The mcpx-cli supports multiple authentication methods with enhanced reliability 
 
 ## API Endpoints Supported
 
-- `POST /api/auth/anonymous` - Anonymous authentication
-- `POST /api/auth/github/oauth` - GitHub OAuth authentication
-- `POST /api/auth/github/oidc` - GitHub OIDC authentication
+- `POST /v0/auth/none` - Anonymous authentication
+- `POST /v0/auth/github/oauth` - GitHub OAuth authentication
+- `POST /v0/auth/github/oidc` - GitHub OIDC authentication
 - `GET /v0/health` - Health check and status
 - `GET /v0/servers` - List servers with basic information and optional pagination
-- `GET /v0/servers/{id}` - Get detailed server information including packages and remotes
+- `GET /v0/servers/{serverName}` - Get detailed server information by name
+- `GET /v0/servers/{serverName}/versions/{version}` - Get specific server version details
 - `POST /v0/publish` - Publish a new server
-- `PUT /v0/servers/{id}` - Update an existing server
-- `PUT /v0/servers/{id}?version={version}` - Delete a server version (soft delete via edit endpoint)
+- `PUT /v0/servers/{serverName}/versions/{version}` - Update or delete a server version
 
-**Note**: The API follows a common pattern where the list endpoint (`/v0/servers`) returns basic server metadata for efficient browsing, while the detail endpoint (`/v0/servers/{id}`) provides complete information including packages and remotes. The CLI's `--detailed` flag bridges this gap by automatically fetching detailed information for all servers in a list.
+**Note**: The API uses server names instead of UUIDs for better usability. Server names are URL-encoded when used in API calls. The CLI's `--detailed` flag automatically fetches detailed information for all servers in a list by making individual API calls.
 
 ## Installation
 
@@ -337,18 +337,18 @@ Example detailed JSON output (with `--detailed` flag):
 Get comprehensive information about a specific server:
 
 ```bash
-mcpx-cli server <server-id>
+mcpx-cli server <server-name>
 
 # Output in JSON format
-mcpx-cli server <server-id> --json
+mcpx-cli server <server-name> --json
 ```
 
 Example:
 ```bash
-mcpx-cli server a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1
+mcpx-cli server io.modelcontextprotocol.anonymous/test-server
 
 # Or with JSON output
-mcpx-cli server a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 --json
+mcpx-cli server io.modelcontextprotocol.anonymous/test-server --json
 ```
 
 **Flags:**
@@ -435,16 +435,16 @@ Delete a server version from the registry using version IDs. Authentication is a
 
 ```bash
 # Using stored authentication (recommended)
-mcpx-cli delete <version-id>
+mcpx-cli delete <server-name> <version>
 
 # Using explicit token (legacy method)
-mcpx-cli delete <version-id> --token <auth-token>
+mcpx-cli delete <server-name> <version> --token <auth-token>
 
 # With JSON output
-mcpx-cli delete <version-id> --json
+mcpx-cli delete <server-name> <version> --json
 
 # Combined flags
-mcpx-cli delete <version-id> --token <auth-token> --json
+mcpx-cli delete <server-name> <version> --token <auth-token> --json
 ```
 
 Example:
@@ -456,17 +456,17 @@ mcpx-cli login --method github-oauth
 mcpx-cli servers
 
 # Delete using stored authentication (use version ID from servers list)
-mcpx-cli delete 5406df58-9f95-437f-af09-5f2f283959f3
+mcpx-cli delete io.modelcontextprotocol.anonymous/test-server 1.0.0
 
 # Alternative: provide token explicitly
-mcpx-cli delete 5406df58-9f95-437f-af09-5f2f283959f3 --token ghp_your_github_token_here
+mcpx-cli delete io.modelcontextprotocol.anonymous/test-server 1.0.0 --token ghp_your_github_token_here
 
 # Output result in JSON format
-mcpx-cli delete 5406df58-9f95-437f-af09-5f2f283959f3 --json
+mcpx-cli delete io.modelcontextprotocol.anonymous/test-server 1.0.0 --json
 
 # For anonymous deletion (if supported by registry policy)
 mcpx-cli login --method anonymous
-mcpx-cli delete 5406df58-9f95-437f-af09-5f2f283959f3
+mcpx-cli delete io.modelcontextprotocol.anonymous/test-server 1.0.0
 ```
 
 **Flags:**
@@ -474,7 +474,7 @@ mcpx-cli delete 5406df58-9f95-437f-af09-5f2f283959f3
 - `--json`: Output result in JSON format
 
 **Important Notes:**
-- **Version-based deletion**: Uses version IDs (not server IDs) - get these from `mcpx-cli servers`
+- **Version-based deletion**: Uses server names and versions - get these from `mcpx-cli servers`
 - **Soft delete**: Servers are marked as "deleted" but not permanently removed
 - **Authentication**: Automatically uses stored credentials or provided token
 - **Permission check**: You can only delete servers you have edit permissions for
@@ -482,13 +482,13 @@ mcpx-cli delete 5406df58-9f95-437f-af09-5f2f283959f3
 
 Example output:
 ```
-=== Delete Version 5406df58-9f95-437f-af09-5f2f283959f3 ===
-✅ Version '5406df58-9f95-437f-af09-5f2f283959f3' deleted successfully
+=== Delete Server Version io.modelcontextprotocol.anonymous/test-server/1.0.0 ===
+✅ Server version 'io.modelcontextprotocol.anonymous/test-server/1.0.0' deleted successfully
 ```
 
 JSON output example:
 ```json
-{"message": "Version 5406df58-9f95-437f-af09-5f2f283959f3 deleted successfully"}
+{"message": "Server version io.modelcontextprotocol.anonymous/test-server/1.0.0 deleted successfully"}
 ```
 
 **Note**: If you get a 403 Forbidden error, it means you don't have edit permissions for that server version. This is expected behavior for servers you don't own or have edit access to.
@@ -505,10 +505,10 @@ mcpx-cli update <server-id> <server.json>
 mcpx-cli update <server-id> <server.json> --token <auth-token>
 
 # With JSON output
-mcpx-cli update <server-id> <server.json> --json
+mcpx-cli update <server-name> <server.json> --json
 
 # Combined flags
-mcpx-cli update <server-id> <server.json> --token <auth-token> --json
+mcpx-cli update <server-name> <server.json> --token <auth-token> --json
 ```
 
 Example:
@@ -517,17 +517,17 @@ Example:
 mcpx-cli login --method github-oauth
 
 # Update using stored authentication
-mcpx-cli update a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 updated-server.json
+mcpx-cli update io.modelcontextprotocol.anonymous/test-server updated-server.json
 
 # Alternative: provide token explicitly
-mcpx-cli update a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 updated-server.json --token ghp_your_github_token_here
+mcpx-cli update io.modelcontextprotocol.anonymous/test-server updated-server.json --token ghp_your_github_token_here
 
 # Output result in JSON format
-mcpx-cli update a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 updated-server.json --json
+mcpx-cli update io.modelcontextprotocol.anonymous/test-server updated-server.json --json
 
 # For anonymous updates (if supported by registry policy)
 mcpx-cli login --method anonymous
-mcpx-cli update a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 updated-server.json
+mcpx-cli update io.modelcontextprotocol.anonymous/test-server updated-server.json
 ```
 
 **Flags:**
@@ -1026,8 +1026,8 @@ mcpx-cli health
 
 # 3. Publish/update/delete operations use stored authentication automatically
 mcpx-cli publish example-server.json
-mcpx-cli update server-id updated-server.json
-mcpx-cli delete server-id
+mcpx-cli update io.modelcontextprotocol.anonymous/test-server updated-server.json
+mcpx-cli delete io.modelcontextprotocol.anonymous/test-server 1.0.0
 
 # 4. Logout when done
 mcpx-cli logout
@@ -1062,7 +1062,7 @@ mcpx-cli login --method github-oauth
 mcpx-cli publish --interactive
 
 # 3. Continue with authenticated operations
-mcpx-cli update server-id updated-server.json
+mcpx-cli update io.modelcontextprotocol.anonymous/test-server updated-server.json
 ```
 
 ### Complete Workflow
@@ -1087,10 +1087,10 @@ mcpx-cli servers --json --limit 10
 mcpx-cli servers --json --detailed --limit 5
 
 # 6. Get details for a specific server
-mcpx-cli server a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1
+mcpx-cli server io.modelcontextprotocol.anonymous/test-server
 
 # 7. Get server details in JSON format (for programmatic processing)
-mcpx-cli server a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 --json
+mcpx-cli server io.modelcontextprotocol.anonymous/test-server --json
 
 # 8. Publish a new server (file-based) - uses stored authentication
 mcpx-cli publish example-server.json
@@ -1099,10 +1099,10 @@ mcpx-cli publish example-server.json
 mcpx-cli publish --interactive
 
 # 10. Update an existing server - uses stored authentication
-mcpx-cli update a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 updated-server.json
+mcpx-cli update io.modelcontextprotocol.anonymous/test-server updated-server.json
 
 # 11. Delete a server - uses stored authentication
-mcpx-cli delete a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1
+mcpx-cli delete io.modelcontextprotocol.anonymous/test-server 1.0.0
 
 # 12. Logout when done
 mcpx-cli logout
@@ -1135,16 +1135,16 @@ mcpx-cli servers --json --detailed | jq '.servers[] | select(.packages[]?.regist
 mcpx-cli servers --json --detailed | jq -r '.servers[].remotes[]?.type' | sort -u
 
 # Get detailed server information in JSON format
-mcpx-cli server a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 --json
+mcpx-cli server io.modelcontextprotocol.anonymous/test-server --json
 
 # Extract specific fields from server details
-mcpx-cli server a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 --json | jq '.packages[].identifier'
+mcpx-cli server io.modelcontextprotocol.anonymous/test-server --json | jq '.packages[].identifier'
 
 # Get all package registries from a server
-mcpx-cli server a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 --json | jq -r '.packages[].registryType'
+mcpx-cli server io.modelcontextprotocol.anonymous/test-server --json | jq -r '.packages[].registryType'
 
 # Extract remote URLs
-mcpx-cli server a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 --json | jq -r '.remotes[].url'
+mcpx-cli server io.modelcontextprotocol.anonymous/test-server --json | jq -r '.remotes[].url'
 
 # Batch operations with server management
 # Find servers with deprecated status and extract their IDs
@@ -1160,7 +1160,7 @@ mcpx-cli servers --json | jq -r '.servers[] | select(.name | contains("test")) |
   done
 
 # Delete server with JSON output for automation/logging
-mcpx-cli delete a5e8a7f0-d4e4-4a1d-b12f-2896a23fd4f1 --json --token "$TOKEN" | jq '.message'
+mcpx-cli delete io.modelcontextprotocol.anonymous/test-server 1.0.0 --json --token "$TOKEN" | jq '.message'
 ```
 
 ### Working with Different Registries
