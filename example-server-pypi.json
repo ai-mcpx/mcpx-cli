@@ -1,7 +1,6 @@
 {
   "name": "io.modelcontextprotocol.anonymous/test-server-python",
   "description": "A test mcp server in python",
-  "status": "active",
   "repository": {
     "url": "https://github.com/example/test-server-python",
     "source": "github",

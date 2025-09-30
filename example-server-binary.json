@@ -1,7 +1,6 @@
 {
   "name": "io.modelcontextprotocol.anonymous/test-server-binary",
   "description": "A test mcp server with binary distribution",
-  "status": "active",
   "repository": {
     "url": "https://github.com/example/test-server-binary",
     "source": "github",

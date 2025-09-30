@@ -1,7 +1,6 @@
 {
   "name": "io.modelcontextprotocol.anonymous/test-server-docker",
   "description": "A test mcp server with docker distribution",
-  "status": "active",
   "repository": {
     "url": "https://github.com/example/test-server-docker",
     "source": "github",

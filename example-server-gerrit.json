@@ -1,7 +1,6 @@
 {
   "name": "io.modelcontextprotocol.anonymous/test-server-gerrit",
   "description": "A test mcp server for gerrit repository",
-  "status": "active",
   "repository": {
     "url": "http://127.0.0.1:8080/plugins/gitiles/example/+/refs/heads/master/test-server-gerrit",
     "source": "gerrit",
