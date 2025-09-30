@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"crypto/sha256"
 	_ "embed"
 	"encoding/json"
 	"flag"
@@ -16,6 +17,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 //go:embed example-server-npm.json
@@ -131,14 +134,80 @@ func (s *Server) GetServerID() string {
 	if s.Meta != nil && s.Meta.Official != nil {
 		return s.Meta.Official.ServerID
 	}
-	return s.ID
+	if s.ID != "" {
+		return s.ID
+	}
+	// Generate a consistent server ID based on server name
+	return generateServerID(s.Name)
+}
+
+// generateServerID generates a consistent server ID based on server name
+func generateServerID(serverName string) string {
+	hash := sha256.Sum256([]byte(serverName))
+	return uuid.NewSHA1(uuid.NameSpaceDNS, hash[:]).String()
+}
+
+// generateVersionID generates a unique version ID based on server name and version
+func generateVersionID(serverName, version string) string {
+	combined := serverName + ":" + version
+	hash := sha256.Sum256([]byte(combined))
+	return uuid.NewSHA1(uuid.NameSpaceDNS, hash[:]).String()
+}
+
+// GetServerIDFromWrapper extracts server ID from ServerWrapper
+func (w *ServerWrapper) GetServerID() string {
+	if w.RegistryMeta != nil {
+		if official, ok := w.RegistryMeta["io.modelcontextprotocol.registry/official"].(map[string]interface{}); ok {
+			if serverID, ok := official["serverId"].(string); ok && serverID != "" {
+				return serverID
+			}
+		}
+	}
+	return w.Server.GetServerID()
+}
+
+// GetVersionIDFromWrapper extracts version ID from ServerWrapper
+func (w *ServerWrapper) GetVersionID() string {
+	if w.RegistryMeta != nil {
+		if official, ok := w.RegistryMeta["io.modelcontextprotocol.registry/official"].(map[string]interface{}); ok {
+			if versionID, ok := official["versionId"].(string); ok && versionID != "" {
+				return versionID
+			}
+		}
+	}
+	return w.Server.GetVersionID()
+}
+
+// GetServerIDFromDetailWrapper extracts server ID from ServerDetailWrapper
+func (w *ServerDetailWrapper) GetServerID() string {
+	if w.RegistryMeta != nil {
+		if official, ok := w.RegistryMeta["io.modelcontextprotocol.registry/official"].(map[string]interface{}); ok {
+			if serverID, ok := official["serverId"].(string); ok && serverID != "" {
+				return serverID
+			}
+		}
+	}
+	return w.Server.GetServerID()
+}
+
+// GetVersionIDFromDetailWrapper extracts version ID from ServerDetailWrapper
+func (w *ServerDetailWrapper) GetVersionID() string {
+	if w.RegistryMeta != nil {
+		if official, ok := w.RegistryMeta["io.modelcontextprotocol.registry/official"].(map[string]interface{}); ok {
+			if versionID, ok := official["versionId"].(string); ok && versionID != "" {
+				return versionID
+			}
+		}
+	}
+	return w.Server.GetVersionID()
 }
 
 func (s *Server) GetVersionID() string {
 	if s.Meta != nil && s.Meta.Official != nil {
 		return s.Meta.Official.VersionID
 	}
-	return ""
+	// Generate a unique version ID based on server name and version
+	return generateVersionID(s.Name, s.Version)
 }
 
 type Metadata struct {
@@ -160,12 +229,12 @@ type DetailedServersResponse struct {
 // New wrapper types for the API format
 type ServerWrapper struct {
 	Server       Server                 `json:"server"`
-	RegistryMeta map[string]interface{} `json:"x-io.modelcontextprotocol.registry,omitempty"`
+	RegistryMeta map[string]interface{} `json:"_meta,omitempty"`
 }
 
 type ServerDetailWrapper struct {
 	Server       ServerDetail           `json:"server"`
-	RegistryMeta map[string]interface{} `json:"x-io.modelcontextprotocol.registry,omitempty"`
+	RegistryMeta map[string]interface{} `json:"_meta,omitempty"`
 }
 
 // Legacy response types for backward compatibility
@@ -558,7 +627,10 @@ func (c *MCPXClient) ListServers(cursor string, limit int, jsonOutput bool, deta
 					if err := json.Unmarshal(body, &serversResp); err == nil {
 						for _, wrapper := range serversResp.Servers {
 							server := wrapper.Server
-							// Server IDs are now extracted automatically via the _meta field in the Server struct
+							// Extract server ID from wrapper metadata and set it in the server object
+							if serverID := wrapper.GetServerID(); serverID != "" {
+								server.ID = serverID
+							}
 							servers = append(servers, server)
 						}
 						metadata = serversResp.Metadata
@@ -601,11 +673,9 @@ func (c *MCPXClient) ListServers(cursor string, limit int, jsonOutput bool, deta
 					var detailWrapper ServerDetailWrapper
 					if err := json.Unmarshal(detailBody, &detailWrapper); err == nil && (detailWrapper.Server.ID != "" || detailWrapper.RegistryMeta != nil) {
 						serverDetail = detailWrapper.Server
-						// Extract ID from registry metadata if not in server
-						if serverDetail.ID == "" && detailWrapper.RegistryMeta != nil {
-							if id, ok := detailWrapper.RegistryMeta["id"].(string); ok {
-								serverDetail.ID = id
-							}
+						// Extract ID from registry metadata using wrapper method
+						if serverID := detailWrapper.GetServerID(); serverID != "" {
+							serverDetail.ID = serverID
 						}
 					} else {
 						// Try legacy format
@@ -712,7 +782,10 @@ func (c *MCPXClient) GetServer(serverName string, jsonOutput bool) error {
 		var detailWrapper ServerDetailWrapper
 		if err := json.Unmarshal(body, &detailWrapper); err == nil && (detailWrapper.Server.Name != "" || detailWrapper.RegistryMeta != nil) {
 			serverDetail = detailWrapper.Server
-			// Server IDs are now extracted automatically via the _meta field in the Server struct
+			// Extract server ID from wrapper metadata
+			if serverID := detailWrapper.GetServerID(); serverID != "" {
+				serverDetail.ID = serverID
+			}
 		} else {
 			// Try legacy format
 			if err := json.Unmarshal(body, &serverDetail); err != nil {
