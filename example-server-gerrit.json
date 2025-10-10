@@ -1,6 +1,9 @@
 {
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
   "name": "io.modelcontextprotocol.anonymous/test-server-gerrit",
+  "title": "Test Gerrit MCP Server",
   "description": "A test mcp server for gerrit repository",
+  "websiteUrl": "https://anonymous.modelcontextprotocol.io/test-server-gerrit",
   "repository": {
     "url": "http://127.0.0.1:8080/plugins/gitiles/example/+/refs/heads/master/test-server-gerrit",
     "source": "gerrit",

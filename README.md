@@ -17,7 +17,7 @@ A command-line interface for interacting with the mcpx registry api. This CLI pr
 - **Server Publishing**: Publish new MCP servers to the registry
 - **Server Updates**: Update existing MCP servers in the registry
 - **Server Deletion**: Delete server versions from the registry using server names and versions
-- **Interactive Mode**: Create server configurations interactively with Node.js, Python PyPI, Python Wheel, Binary, Docker, OCI, and MCPB templates
+- **Interactive Mode**: Create server configurations interactively with Node.js, Python PyPI, Python Wheel, Binary, Docker, OCI, MCPB, and Gerrit templates
 - **JSON Output**: All responses are formatted for easy reading with optional detailed information
 - **Configurable Base URL**: Target different mcpx registry instances
 
@@ -28,20 +28,21 @@ The mcpx-cli supports multiple authentication methods with enhanced reliability 
 - **Anonymous**: Basic access without GitHub authentication with automatic token refresh
 - **GitHub OAuth**: Full GitHub OAuth flow for authenticated access with retry on failures
 - **GitHub OIDC**: GitHub OpenID Connect for enterprise environments
-- **DNS**: Domain-based authentication (future implementation)
-- **HTTP**: HTTP-based authentication (future implementation)
+- **DNS**: Domain-based authentication for enterprise environments
+- **HTTP**: HTTP-based authentication for custom authentication systems
 
 ## API Endpoints Supported
 
 - `POST /v0/auth/none` - Anonymous authentication
 - `POST /v0/auth/github/oauth` - GitHub OAuth authentication
-- `POST /v0/auth/github/oidc` - GitHub OIDC authentication
+- `POST /v0/auth/dns` - DNS-based authentication
+- `POST /v0/auth/http` - HTTP-based authentication
 - `GET /v0/health` - Health check and status
 - `GET /v0/servers` - List servers with basic information and optional pagination
 - `GET /v0/servers/{serverName}` - Get detailed server information by name
 - `GET /v0/servers/{serverName}/versions/{version}` - Get specific server version details
 - `POST /v0/publish` - Publish a new server
-- `PUT /v0/servers/{serverName}/versions/{version}` - Update or delete a server version
+- `PUT /v0/publish` - Update an existing server
 
 **Note**: The API uses server names instead of UUIDs for better usability. Server names are URL-encoded when used in API calls. The CLI's `--detailed` flag automatically fetches detailed information for all servers in a list by making individual API calls.
 
@@ -706,8 +707,8 @@ mcpx-cli publish --interactive --token ghp_your_github_token_here
 ```
 
 The interactive mode will:
-1. **Choose Runtime**: Select between Node.js, Python, Binary, Docker, OCI, MCPB, and Gerrit server templates
-2. **Configure Server**: Set name, description, and repository information
+1. **Choose Runtime**: Select between Node.js, Python PyPI, Python Wheel, Binary, Docker, OCI, MCPB, and Gerrit server templates
+2. **Configure Server**: Set name, description, title, website URL, and repository information
 3. **Set Version**: Specify package version and details
 4. **Environment Setup**: Configure environment variables and runtime settings
 5. **Save & Publish**: Optionally save the configuration file and publish to registry
@@ -853,9 +854,9 @@ The Docker template includes:
 
 The Gerrit template includes:
 - Gerrit repository source (`source: "gerrit"`)
-- PyPI and OCI package registry support
-- Python and Docker runtime hints
-- Standard transport types (`type: "stdio"` and `streamable-http`)
+- Docker package registry support
+- Docker runtime hints
+- Standard transport types (`type: "stdio"`)
 - Gerrit-specific repository URL format
 
 All templates provide sensible defaults that can be customized during the interactive configuration process and support the new transport type specifications.
@@ -881,7 +882,7 @@ The mcpx-cli uses camelCase field names in JSON to match the mcpx server API spe
 ### Package Fields
 - `registryType` - Package registry type (npm, pypi, oci, docker, mcpb, binary, wheel)
 - `registryBaseUrl` - Base URL of the package registry
-- `runtimeHint` - Runtime execution hint (npx, python, docker, binary, etc.)
+- `runtimeHint` - Runtime execution hint (npx, python, docker, binary, wheel, etc.)
 - `runtimeArguments` - Array of runtime arguments
 - `environmentVariables` - Array of environment variables
 
@@ -892,27 +893,51 @@ The mcpx-cli uses camelCase field names in JSON to match the mcpx server API spe
 ### Example Package Structure
 ```json
 {
-  "registryType": "npm",
-  "registryBaseUrl": "https://registry.npmjs.org",
-  "identifier": "@example/package-name",
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
+  "name": "io.modelcontextprotocol.anonymous/test-server",
+  "title": "Test MCP Server",
+  "description": "A test MCP server",
+  "websiteUrl": "https://anonymous.modelcontextprotocol.io/test-server",
+  "repository": {
+    "url": "https://github.com/example/test-server",
+    "source": "github",
+    "id": "example/test-server"
+  },
   "version": "1.0.0",
-  "runtimeHint": "npx",
-  "runtimeArguments": [
+  "packages": [
     {
-      "type": "string",
-      "name": "config_path",
-      "valueHint": "config_path",
-      "description": "Path to configuration file",
-      "isRequired": true
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "@example/package-name",
+      "version": "1.0.0",
+      "runtimeHint": "npx",
+      "transport": {
+        "type": "stdio"
+      },
+      "runtimeArguments": [
+        {
+          "type": "string",
+          "name": "config_path",
+          "valueHint": "config_path",
+          "description": "Path to configuration file",
+          "isRequired": true
+        }
+      ],
+      "environmentVariables": [
+        {
+          "name": "MCP_HOST",
+          "description": "Server host address",
+          "format": "string",
+          "isRequired": false,
+          "default": "0.0.0.0"
+        }
+      ]
     }
   ],
-  "environmentVariables": [
+  "remotes": [
     {
-      "name": "MCP_HOST",
-      "description": "Server host address",
-      "format": "string",
-      "isRequired": false,
-      "default": "0.0.0.0"
+      "type": "stdio",
+      "url": "npx @example/package-name"
     }
   ]
 }
@@ -978,8 +1003,11 @@ The mcpx-cli supports multiple repository sources when publishing servers. The r
 #### GitHub Repository
 ```json
 {
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
   "name": "io.github.example/my-server",
+  "title": "My Awesome MCP Server",
   "description": "My awesome MCP server",
+  "websiteUrl": "https://example.github.io/my-server",
   "repository": {
     "url": "https://github.com/example/my-server",
     "source": "github",
@@ -991,8 +1019,11 @@ The mcpx-cli supports multiple repository sources when publishing servers. The r
 #### GitLab Repository
 ```json
 {
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
   "name": "io.modelcontextprotocol.anonymous/gitlab-server",
+  "title": "GitLab MCP Server",
   "description": "MCP server hosted on GitLab",
+  "websiteUrl": "https://gitlab.com/myorg/my-server",
   "repository": {
     "url": "https://gitlab.com/myorg/my-server",
     "source": "gitlab",
@@ -1004,8 +1035,11 @@ The mcpx-cli supports multiple repository sources when publishing servers. The r
 #### Gerrit Repository
 ```json
 {
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
   "name": "io.modelcontextprotocol.anonymous/enterprise-server",
+  "title": "Enterprise MCP Server",
   "description": "Enterprise MCP server from Gerrit",
+  "websiteUrl": "http://gerrit.company.com:8080/plugins/gitiles/mcp-server/+/refs/heads/main",
   "repository": {
     "url": "http://gerrit.company.com:8080/plugins/gitiles/mcp-server/+/refs/heads/main",
     "source": "gerrit",
@@ -1210,8 +1244,8 @@ Authentication credentials are automatically stored in `~/.mcpx-cli-config.json`
 | `anonymous` | Basic anonymous access | Public browsing, non-GitHub servers |
 | `github-oauth` | GitHub OAuth authentication | GitHub-namespaced servers, full access |
 | `github-oidc` | GitHub OIDC authentication | Enterprise environments, CI/CD |
-| `dns` | Domain-based authentication | Future implementation |
-| `http` | HTTP-based authentication | Future implementation |
+| `dns` | Domain-based authentication | Enterprise environments, DNS validation |
+| `http` | HTTP-based authentication | Custom authentication systems |
 
 ## License
 

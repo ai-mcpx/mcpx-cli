@@ -1,6 +1,9 @@
 {
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
   "name": "io.modelcontextprotocol.anonymous/test-server-python",
+  "title": "Test Python MCP Server",
   "description": "A test mcp server in python",
+  "websiteUrl": "https://anonymous.modelcontextprotocol.io/test-server-python",
   "repository": {
     "url": "https://github.com/example/test-server-python",
     "source": "github",
