@@ -1249,4 +1249,4 @@ Authentication credentials are automatically stored in `~/.mcpx-cli-config.json`
 
 ## License
 
-This project is licensed under the same license as the mcpx project.
+This project is licensed under the MIT License - see the LICENSE file for details.
