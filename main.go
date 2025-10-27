@@ -1515,17 +1515,11 @@ func main() {
 	var globalFlags = flag.NewFlagSet("global", flag.ContinueOnError)
 	globalFlags.StringVar(&baseURL, "base-url", defaultBaseURL, "Base url of the mcpx api")
 
-	args := os.Args[1:]
-	for i, arg := range args {
-		if !strings.HasPrefix(arg, "--") {
-			if err := globalFlags.Parse(args[:i]); err != nil {
-				fmt.Printf("Error parsing global flags: %v\n", err)
-				os.Exit(1)
-			}
-			args = args[i:]
-			break
-		}
+	if err := globalFlags.Parse(os.Args[1:]); err != nil {
+		fmt.Printf("Error parsing global flags: %v\n", err)
+		os.Exit(1)
 	}
+	args := globalFlags.Args()
 
 	if len(args) == 0 {
 		printUsage()
@@ -1591,7 +1585,7 @@ func main() {
 			}
 		}
 		if serverName == "" {
-			fmt.Println("Error: server name is required")
+			fmt.Println("Error: server ID is required")
 			fmt.Println("Usage: mcpx-cli server <name> [--json]")
 			os.Exit(1)
 		}
@@ -1629,7 +1623,7 @@ func main() {
 		}
 
 		if serverName == "" {
-			fmt.Println("Error: server name is required")
+			fmt.Println("Error: server ID is required")
 			fmt.Println("Usage: mcpx-cli update <name> <server.json> [--token <token>] [--json]")
 			os.Exit(1)
 		}
@@ -1705,7 +1699,8 @@ func main() {
 			}
 		}
 		if serverName == "" {
-			fmt.Println("Error: server name is required")
+			// Align error wording with tests expecting "server ID is required"
+			fmt.Println("Error: server ID is required")
 			fmt.Println("Usage: mcpx-cli delete <server-name> <version> [--token <token>] [--json]")
 			fmt.Println("Get server names and versions with: mcpx-cli servers")
 			os.Exit(1)
