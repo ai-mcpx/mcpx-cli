@@ -1,5 +1,5 @@
 {
-  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-10-17/server.schema.json",
   "name": "io.modelcontextprotocol.anonymous/test-server-docker",
   "title": "Test Docker MCP Server",
   "description": "A test mcp server with docker distribution",
@@ -40,7 +40,8 @@
         {
           "name": "--port",
           "description": "Server port number",
-          "type": "number",
+          "type": "named",
+          "format": "number",
           "isRequired": false,
           "default": "8005",
           "valueHint": "port_number"
@@ -48,7 +49,8 @@
         {
           "name": "--host",
           "description": "Server host address",
-          "type": "string",
+          "type": "named",
+          "format": "string",
           "isRequired": false,
           "default": "0.0.0.0",
           "valueHint": "host_address"
@@ -56,7 +58,8 @@
         {
           "name": "--config",
           "description": "Path to configuration file",
-          "type": "string",
+          "type": "named",
+          "format": "filepath",
           "isRequired": false,
           "default": "./config.json",
           "valueHint": "config_path"

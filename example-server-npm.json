@@ -1,5 +1,5 @@
 {
-  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-10-17/server.schema.json",
   "name": "io.modelcontextprotocol.anonymous/test-server-node",
   "title": "Test Node.js MCP Server",
   "description": "A test mcp server in node",
@@ -21,10 +21,10 @@
       },
       "runtimeArguments": [
         {
-          "type": "string",
-          "name": "config_path",
+          "type": "positional",
           "valueHint": "config_path",
           "description": "Path to configuration file",
+          "format": "filepath",
           "default": "./config.json",
           "isRequired": true
         }
@@ -59,16 +59,15 @@
         {
           "type": "named",
           "name": "--rm",
-          "valueHint": "--rm",
           "description": "Remove container after exit",
-          "default": "",
           "isRequired": true
         },
         {
-          "type": "string",
+          "type": "named",
           "name": "-p",
           "valueHint": "port_mapping",
           "description": "Port mapping for the container",
+          "format": "string",
           "default": "8001:8000",
           "isRequired": false
         }

@@ -305,12 +305,11 @@ Example detailed JSON output (with `--detailed` flag):
           "runtimeArguments": [
             {
               "type": "positional",
-              "name": "target_dir",
+              "valueHint": "target_dir",
               "description": "Path to access",
-              "format": "string",
+              "format": "filepath",
               "isRequired": true,
-              "default": "/Users/username/Desktop",
-              "valueHint": "target_dir"
+              "default": "/Users/username/Desktop"
             }
           ],
           "environmentVariables": [
@@ -893,7 +892,7 @@ The mcpx-cli uses camelCase field names in JSON to match the mcpx server API spe
 ### Example Package Structure
 ```json
 {
-  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-10-17/server.schema.json",
   "name": "io.modelcontextprotocol.anonymous/test-server",
   "title": "Test MCP Server",
   "description": "A test MCP server",
@@ -916,10 +915,10 @@ The mcpx-cli uses camelCase field names in JSON to match the mcpx server API spe
       },
       "runtimeArguments": [
         {
-          "type": "string",
-          "name": "config_path",
+          "type": "positional",
           "valueHint": "config_path",
           "description": "Path to configuration file",
+          "format": "filepath",
           "isRequired": true
         }
       ],
@@ -1003,7 +1002,7 @@ The mcpx-cli supports multiple repository sources when publishing servers. The r
 #### GitHub Repository
 ```json
 {
-  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-10-17/server.schema.json",
   "name": "io.github.example/my-server",
   "title": "My Awesome MCP Server",
   "description": "My awesome MCP server",
@@ -1019,7 +1018,7 @@ The mcpx-cli supports multiple repository sources when publishing servers. The r
 #### GitLab Repository
 ```json
 {
-  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-10-17/server.schema.json",
   "name": "io.modelcontextprotocol.anonymous/gitlab-server",
   "title": "GitLab MCP Server",
   "description": "MCP server hosted on GitLab",
@@ -1035,7 +1034,7 @@ The mcpx-cli supports multiple repository sources when publishing servers. The r
 #### Gerrit Repository
 ```json
 {
-  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-10-17/server.schema.json",
   "name": "io.modelcontextprotocol.anonymous/enterprise-server",
   "title": "Enterprise MCP Server",
   "description": "Enterprise MCP server from Gerrit",

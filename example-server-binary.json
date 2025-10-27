@@ -1,5 +1,5 @@
 {
-  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-10-17/server.schema.json",
   "name": "io.modelcontextprotocol.anonymous/test-server-binary",
   "title": "Test Binary MCP Server",
   "description": "A test mcp server with binary distribution",
@@ -22,26 +22,29 @@
       },
       "runtimeArguments": [
         {
-          "type": "number",
+          "type": "named",
           "name": "--port",
           "valueHint": "port_number",
           "description": "Server port number",
+          "format": "number",
           "default": "8000",
           "isRequired": false
         },
         {
-          "type": "string",
+          "type": "named",
           "name": "--host",
           "valueHint": "host_address",
           "description": "Server host address",
+          "format": "string",
           "default": "0.0.0.0",
           "isRequired": false
         },
         {
-          "type": "string",
+          "type": "named",
           "name": "--config",
           "valueHint": "config_path",
           "description": "Path to configuration file",
+          "format": "filepath",
           "default": "./config.json",
           "isRequired": false
         }
@@ -76,16 +79,15 @@
         {
           "type": "named",
           "name": "--rm",
-          "valueHint": "--rm",
           "description": "Remove container after exit",
-          "default": "",
           "isRequired": true
         },
         {
-          "type": "string",
+          "type": "named",
           "name": "-p",
           "valueHint": "port_mapping",
           "description": "Port mapping for the container",
+          "format": "string",
           "default": "8000:8000",
           "isRequired": false
         }
