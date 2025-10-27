@@ -1699,7 +1699,6 @@ func main() {
 			}
 		}
 		if serverName == "" {
-			// Align error wording with tests expecting "server ID is required"
 			fmt.Println("Error: server ID is required")
 			fmt.Println("Usage: mcpx-cli delete <server-name> <version> [--token <token>] [--json]")
 			fmt.Println("Get server names and versions with: mcpx-cli servers")
