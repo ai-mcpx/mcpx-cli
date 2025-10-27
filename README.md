@@ -4,45 +4,38 @@ A command-line interface for interacting with the mcpx registry api. This CLI pr
 
 ## Features
 
-- **Cross-Platform Compatibility**: Native support for Windows, macOS, and Linux with proper path handling
-- **Enhanced Authentication System**: Multiple authentication methods with automatic retry and token management
-- **Repository Source Support**: Full support for GitHub, GitLab, and Gerrit repositories with automatic URL validation
-- **Automatic Token Management**: Secure credential storage with proactive expiration handling and automatic refresh
-- **Robust Error Handling**: Graceful handling of authentication failures with automatic retry mechanisms
-- **Smart ID Generation**: Automatic generation of consistent server IDs and version IDs for better tracking
-- **Health Check**: Verify api connectivity and status
-- **Server Listing**: Browse available MCP servers with pagination and generated IDs
-- **Server Details**: Get comprehensive information about specific servers
-- **Detailed Server Information**: Retrieve complete server data including packages and remotes
-- **Server Publishing**: Publish new MCP servers to the registry
-- **Server Updates**: Update existing MCP servers in the registry
-- **Server Deletion**: Delete server versions from the registry using server names and versions
-- **Interactive Mode**: Create server configurations interactively with Node.js, Python PyPI, Python Wheel, Binary, Docker, OCI, MCPB, and Gerrit templates
-- **JSON Output**: All responses are formatted for easy reading with optional detailed information
-- **Configurable Base URL**: Target different mcpx registry instances
+- Cross-platform: Windows, macOS, and Linux with proper path handling
+- Authentication: Anonymous auth implemented with automatic token storage/refresh; GitHub OAuth/OIDC planned
+- Repository sources: GitHub, GitLab, and Gerrit with basic URL validation
+- Automatic token management: Secure credential storage with 60s early-expiry buffer
+- Robust error handling: Graceful failures and retry for publish when re-auth is needed
+- Smart ID generation: Stable server/version IDs when API doesn’t include them
+- Health check, list, and detail views for servers (with optional detailed JSON)
+- Publish, update, and delete server versions (by server name and version)
+- Interactive publisher: npm, PyPI, wheel, binary, docker/oci, mcpb, gerrit templates
+- JSON output and configurable base URL
 
 ## Authentication Methods
 
-The mcpx-cli supports multiple authentication methods with enhanced reliability and automatic retry capabilities:
+Implemented in the CLI:
+- Anonymous: Basic access without GitHub authentication with automatic token refresh
 
-- **Anonymous**: Basic access without GitHub authentication with automatic token refresh
-- **GitHub OAuth**: Full GitHub OAuth flow for authenticated access with retry on failures
-- **GitHub OIDC**: GitHub OpenID Connect for enterprise environments
-- **DNS**: Domain-based authentication for enterprise environments
-- **HTTP**: HTTP-based authentication for custom authentication systems
+Planned/experimental (backend-dependent, CLI login not yet implemented):
+- GitHub OAuth
+- GitHub OIDC
+
+Note: DNS/HTTP custom methods are not supported by this CLI at the moment.
 
 ## API Endpoints Supported
 
-- `POST /v0/auth/none` - Anonymous authentication
-- `POST /v0/auth/github/oauth` - GitHub OAuth authentication
-- `POST /v0/auth/dns` - DNS-based authentication
-- `POST /v0/auth/http` - HTTP-based authentication
-- `GET /v0/health` - Health check and status
-- `GET /v0/servers` - List servers with basic information and optional pagination
-- `GET /v0/servers/{serverName}` - Get detailed server information by name
-- `GET /v0/servers/{serverName}/versions/{version}` - Get specific server version details
-- `POST /v0/publish` - Publish a new server
-- `PUT /v0/publish` - Update an existing server
+- `POST /v0/auth/none` — Anonymous authentication
+- `GET /v0/health` — Health check and status
+- `GET /v0/servers` — List servers with basic information and optional pagination
+- `GET /v0/servers/{serverName}` — Get detailed server information by name
+- `GET /v0/servers/{serverName}/versions/{version}` — Get specific server version details
+- `POST /v0/publish` — Publish a new server
+- `PUT /v0/servers/{serverName}/versions/{version}` — Update an existing server version
+- `PUT /v0/servers/{serverName}/versions/{version}?status=deleted` — Soft-delete a server version
 
 **Note**: The API uses server names instead of UUIDs for better usability. Server names are URL-encoded when used in API calls. The CLI's `--detailed` flag automatically fetches detailed information for all servers in a list by making individual API calls.
 
@@ -69,17 +62,11 @@ The CLI automatically generates consistent server IDs and version IDs for better
 # Clone or navigate to the project directory
 cd mcpx-cli
 
-# Build the binary
-make build
-
-# Or use go directly
+# Build the binary with Go
 go build -o mcpx-cli .
-```
 
-### Install for System-wide Use
-
-```bash
-make install
+# Optional: install to your GOPATH/bin
+go install .
 ```
 
 ## Usage
@@ -94,6 +81,13 @@ mcpx-cli [global flags] <command> [command flags]
 
 - `--base-url=string`: Base url of the mcpx api (default: http://localhost:8080)
 - `--version`: Show version information
+
+Global flags can appear before or after the command:
+
+```bash
+mcpx-cli --base-url http://localhost:8080 servers
+mcpx-cli servers --base-url http://localhost:8080
+```
 
 ## Quick Start
 
@@ -134,8 +128,8 @@ Check that your server was published successfully:
 # List all servers
 mcpx-cli --base-url=http://your-server.com/ servers
 
-# Get details of a specific server
-mcpx-cli --base-url=http://your-server.com/ server <server-id>
+# Get details of a specific server (by name)
+mcpx-cli --base-url=http://your-server.com/ server <server-name>
 ```
 
 ### Commands
@@ -445,7 +439,7 @@ Example JSON output (with `--json` flag):
 
 #### Delete Server
 
-Delete a server version from the registry using version IDs. Authentication is automatically handled through stored credentials or explicit tokens.
+Delete a server version from the registry using server name and version. Authentication is automatically handled through stored credentials or explicit tokens.
 
 ```bash
 # Using stored authentication (recommended)
@@ -509,14 +503,14 @@ JSON output example:
 
 #### Update Server
 
-Update an existing MCP server in the registry. Authentication is automatically handled through stored credentials or explicit tokens.
+Update an existing MCP server version in the registry. Authentication is automatically handled through stored credentials or explicit tokens.
 
 ```bash
 # Using stored authentication (recommended)
-mcpx-cli update <server-id> <server.json>
+mcpx-cli update <server-name> <server.json>
 
-# Using explicit token (legacy method)
-mcpx-cli update <server-id> <server.json> --token <auth-token>
+# Using explicit token
+mcpx-cli update <server-name> <server.json> --token <auth-token>
 
 # With JSON output
 mcpx-cli update <server-name> <server.json> --json
@@ -799,7 +793,13 @@ mcpx-cli --base-url=https://your-custom-registry.com servers
 
 When publishing servers, you need to provide a JSON file describing the server.
 
-See `example-server-node.json` and `example-server-python.json` for complete examples.
+See these examples in the repo for complete configurations:
+- `example-server-npm.json`
+- `example-server-pypi.json`
+- `example-server-wheel.json`
+- `example-server-binary.json`
+- `example-server-docker.json`
+- `example-server-gerrit.json`
 
 ## Interactive Mode Templates
 
@@ -949,26 +949,26 @@ The mcpx-cli uses camelCase field names in JSON to match the mcpx server API spe
 
 ```bash
 # Build for current platform
-make build
+go build -o mcpx-cli .
 
-# Build for Linux
-make build-linux
+# Cross-compile example (Linux AMD64)
+GOOS=linux GOARCH=amd64 go build -o mcpx-cli-linux-amd64 .
 
-# Clean build artifacts
-make clean
+# Clean build artifacts (manual)
+rm -f mcpx-cli mcpx-cli-*
 ```
 
 ### Testing
 
 ```bash
 # Run tests
-make test
+go test ./...
 
 # Format code
-make fmt
+gofmt -w .
 
 # Vet code
-make vet
+go vet ./...
 ```
 
 ### Demo Commands
@@ -1140,7 +1140,7 @@ mcpx-cli server io.modelcontextprotocol.anonymous/test-server
 mcpx-cli server io.modelcontextprotocol.anonymous/test-server --json
 
 # 8. Publish a new server (file-based) - uses stored authentication
-mcpx-cli publish example-server.json
+mcpx-cli publish example-server-npm.json
 
 # 9. Publish a new server (interactive mode) - uses stored authentication
 mcpx-cli publish --interactive
@@ -1239,13 +1239,11 @@ Authentication credentials are automatically stored in `~/.mcpx-cli-config.json`
 
 ### Supported Authentication Methods
 
-| Method | Description | Use Case |
-|--------|-------------|----------|
-| `anonymous` | Basic anonymous access | Public browsing, non-GitHub servers |
-| `github-oauth` | GitHub OAuth authentication | GitHub-namespaced servers, full access |
-| `github-oidc` | GitHub OIDC authentication | Enterprise environments, CI/CD |
-| `dns` | Domain-based authentication | Enterprise environments, DNS validation |
-| `http` | HTTP-based authentication | Custom authentication systems |
+| Method | Description | CLI support |
+|--------|-------------|------------|
+| `anonymous` | Basic anonymous access | Implemented |
+| `github-oauth` | GitHub OAuth authentication | Planned |
+| `github-oidc` | GitHub OIDC authentication | Planned |
 
 ## License
 
