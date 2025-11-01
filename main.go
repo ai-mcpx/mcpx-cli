@@ -60,6 +60,11 @@ const (
 	RegistryTypeBinary = "binary"
 	RegistryTypeWheel  = "wheel"
 
+	// Repository Sources - supported repository sources
+	RepositorySourceGitHub = "github"
+	RepositorySourceGitLab = "gitlab"
+	RepositorySourceGerrit = "gerrit"
+
 	// Transport Types - supported remote transport protocols
 	TransportTypeStreamableHTTP = "streamable-http"
 	TransportTypeSSE            = "sse"

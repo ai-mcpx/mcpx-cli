@@ -34,6 +34,7 @@ Note: DNS/HTTP custom methods are not supported by this CLI at the moment.
 - `GET /v0/servers/{serverName}` — Get detailed server information by name
 - `GET /v0/servers/{serverName}/versions/{version}` — Get specific server version details
 - `POST /v0/publish` — Publish a new server
+- `PUT /v0/publish` — Update an existing server (alternative endpoint)
 - `PUT /v0/servers/{serverName}/versions/{version}` — Update an existing server version
 - `PUT /v0/servers/{serverName}/versions/{version}?status=deleted` — Soft-delete a server version
 
@@ -880,8 +881,15 @@ The mcpx-cli uses camelCase field names in JSON to match the mcpx server API spe
 
 ### Package Fields
 - `registryType` - Package registry type (npm, pypi, oci, docker, mcpb, binary, wheel)
-- `registryBaseUrl` - Base URL of the package registry
-- `runtimeHint` - Runtime execution hint (npx, python, docker, binary, wheel, etc.)
+  - **npm**: NPM packages from npmjs.org
+  - **pypi**: PyPI packages from pypi.org
+  - **oci**: OCI-compatible container images
+  - **docker**: Docker container images (supports custom registries)
+  - **mcpb**: MCP Binary format packages
+  - **binary**: Binary packages with direct download URLs
+  - **wheel**: Python wheel packages (.whl files)
+- `registryBaseUrl` - Base URL of the package registry (optional, defaults to official registries)
+- `runtimeHint` - Runtime execution hint (npx, uvx, docker, binary, wheel, dnx, etc.)
 - `runtimeArguments` - Array of runtime arguments
 - `environmentVariables` - Array of environment variables
 
@@ -995,7 +1003,9 @@ The mcpx-cli supports multiple repository sources when publishing servers. The r
 |--------|------------|---------|-------------|
 | **GitHub** | `https://github.com/user/repo` | `https://github.com/microsoft/vscode` | Most common, supports GitHub authentication |
 | **GitLab** | `https://gitlab.com/user/repo` | `https://gitlab.com/gitlab-org/gitlab` | GitLab-hosted repositories |
-| **Gerrit** | `http://host:port/project/path` | `http://gerrit.example.com:8080/my-project` | Enterprise Gerrit installations |
+| **Gerrit** | `http://host:port/project/path` or `https://host/project/path` | `http://gerrit.example.com:8080/my-project` | Enterprise Gerrit installations (supports self-hosted instances) |
+
+**Note**: Repository source validation is performed by the backend registry. The CLI supports all three repository sources, and URLs are validated according to the specified source type.
 
 ### Repository Configuration Examples
 
