@@ -759,9 +759,16 @@ func (c *MCPXClient) GetServer(serverName string, jsonOutput bool) error {
 		fmt.Printf("=== Get Server Details (Name: %s) ===\n", serverName)
 	}
 
-	// URL encode the server name for the API
-	encodedName := url.QueryEscape(serverName)
-	endpoint := "/v0/servers/" + encodedName
+	// URL encode the server name for the API (use PathEscape for path segments)
+	// Note: We need to double-encode slashes because Go's HTTP server decodes %2F to / before routing
+	encodedName := url.PathEscape(serverName)
+	// Double-encode the % in %2F to %252F so it survives Go's URL decoding
+	encodedName = strings.ReplaceAll(encodedName, "%2F", "%252F")
+	endpoint := "/v0/servers/" + encodedName + "/versions/latest"
+
+	if !jsonOutput {
+		fmt.Printf("Request URL: %s%s\n", c.baseURL, endpoint)
+	}
 
 	resp, err := c.makeRequest("GET", endpoint, nil, "")
 	if err != nil {
@@ -1328,9 +1335,12 @@ func (c *MCPXClient) UpdateServer(serverName, serverFile, token string, jsonOutp
 		return fmt.Errorf("authentication token is required for GitHub namespaced servers (io.github.*)")
 	}
 
-	// URL encode the server name and version for the API
-	encodedName := url.QueryEscape(serverName)
-	encodedVersion := url.QueryEscape(serverDetail.Version)
+	// URL encode the server name and version for the API (use PathEscape for path segments)
+	// Note: We need to double-encode slashes because Go's HTTP server decodes %2F to / before routing
+	encodedName := url.PathEscape(serverName)
+	// Double-encode the % in %2F to %252F so it survives Go's URL decoding
+	encodedName = strings.ReplaceAll(encodedName, "%2F", "%252F")
+	encodedVersion := url.PathEscape(serverDetail.Version)
 	endpoint := fmt.Sprintf("/v0/servers/%s/versions/%s", encodedName, encodedVersion)
 
 	resp, err := c.makeRequest("PUT", endpoint, data, token)
@@ -1378,8 +1388,11 @@ func (c *MCPXClient) DeleteServer(serverName, version, token string, jsonOutput 
 	}
 
 	// Use the edit endpoint to set status to deleted
-	encodedName := url.QueryEscape(serverName)
-	encodedVersion := url.QueryEscape(version)
+	// Note: We need to double-encode slashes because Go's HTTP server decodes %2F to / before routing
+	encodedName := url.PathEscape(serverName)
+	// Double-encode the % in %2F to %252F so it survives Go's URL decoding
+	encodedName = strings.ReplaceAll(encodedName, "%2F", "%252F")
+	encodedVersion := url.PathEscape(version)
 	endpoint := fmt.Sprintf("/v0/servers/%s/versions/%s?status=deleted", encodedName, encodedVersion)
 
 	// Create a minimal request body for the edit endpoint
