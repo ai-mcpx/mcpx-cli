@@ -97,11 +97,7 @@ func createMockServer() *httptest.Server {
 							"source": "github",
 							"id":     "test/server1",
 						},
-						"version_detail": map[string]interface{}{
-							"version":      "1.0.0",
-							"release_date": "2023-01-01T00:00:00Z",
-							"is_latest":    true,
-						},
+						"version": "1.0.0",
 						"_meta": map[string]interface{}{
 							"io.modelcontextprotocol.registry/official": map[string]interface{}{
 								"serverId":    "58031f85-792f-4c22-9d76-b4dd01e287aa",
@@ -121,11 +117,7 @@ func createMockServer() *httptest.Server {
 							"source": "github",
 							"id":     "test/server2",
 						},
-						"version_detail": map[string]interface{}{
-							"version":      "2.0.0",
-							"release_date": "2023-02-01T00:00:00Z",
-							"is_latest":    true,
-						},
+						"version": "2.0.0",
 						"_meta": map[string]interface{}{
 							"io.modelcontextprotocol.registry/official": map[string]interface{}{
 								"serverId":    "69142f85-792f-4c22-9d76-b4dd01e287bb",
@@ -172,11 +164,6 @@ func createMockServer() *httptest.Server {
 							ID:     "test/server",
 						},
 						Version: version,
-						VersionDetail: VersionDetail{
-							Version:     version,
-							ReleaseDate: "2023-01-01T00:00:00Z",
-							IsLatest:    true,
-						},
 						Meta: &ServerMeta{
 							Official: &RegistryExtensions{
 								ServerID:  "58031f85-792f-4c22-9d76-b4dd01e287aa",
@@ -234,11 +221,7 @@ func createMockServer() *httptest.Server {
 							Source: "github",
 							ID:     "test/server1",
 						},
-						VersionDetail: VersionDetail{
-							Version:     "1.0.0",
-							ReleaseDate: "2023-01-01T00:00:00Z",
-							IsLatest:    true,
-						},
+						Version: "1.0.0",
 						Meta: &ServerMeta{
 							Official: &RegistryExtensions{
 								ServerID:  "58031f85-792f-4c22-9d76-b4dd01e287aa",

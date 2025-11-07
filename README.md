@@ -257,11 +257,7 @@ Example JSON output (with `--json` flag):
         "source": "github",
         "id": "modelcontextprotocol/servers"
       },
-      "version_detail": {
-        "version": "1.0.2",
-        "release_date": "2023-06-15T10:30:00Z",
-        "is_latest": true
-      }
+      "version": "1.0.2"
     }
   ],
   "metadata": {
@@ -291,11 +287,7 @@ Example detailed JSON output (with `--detailed` flag):
         "source": "github",
         "id": "modelcontextprotocol/servers"
       },
-      "version_detail": {
-        "version": "1.0.2",
-        "release_date": "2023-06-15T10:30:00Z",
-        "is_latest": true
-      },
+      "version": "1.0.2",
       "packages": [
         {
           "registryType": "npm",
@@ -394,11 +386,7 @@ Example JSON output (with `--json` flag):
     "source": "github",
     "id": "modelcontextprotocol/servers"
   },
-  "version_detail": {
-    "version": "1.0.2",
-    "release_date": "2023-06-15T10:30:00Z",
-    "is_latest": true
-  },
+  "version": "1.0.2",
   "packages": [
     {
       "registryType": "npm",
@@ -557,10 +545,7 @@ Example server configuration file (`updated-server.json`):
     "url": "https://github.com/modelcontextprotocol/servers",
     "source": "github"
   },
-  "version_detail": {
-    "version": "1.0.3",
-    "is_latest": true
-  },
+  "version": "1.0.3",
   "packages": [
     {
       "registryType": "npm",

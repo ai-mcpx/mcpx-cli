@@ -106,21 +106,14 @@ type Repository struct {
 	ID     string `json:"id"`
 }
 
-type VersionDetail struct {
-	Version     string `json:"version"`
-	ReleaseDate string `json:"releaseDate"`
-	IsLatest    bool   `json:"isLatest"`
-}
-
 type Server struct {
-	ID            string        `json:"id,omitempty"`
-	Name          string        `json:"name"`
-	Description   string        `json:"description"`
-	Status        string        `json:"status,omitempty"`
-	Repository    Repository    `json:"repository"`
-	Version       string        `json:"version"`
-	VersionDetail VersionDetail `json:"versionDetail,omitempty"` // Deprecated: use Version
-	Meta          *ServerMeta   `json:"_meta,omitempty"`
+	ID          string      `json:"id,omitempty"`
+	Name        string      `json:"name"`
+	Description string      `json:"description"`
+	Status      string      `json:"status,omitempty"`
+	Repository  Repository  `json:"repository"`
+	Version     string      `json:"version"`
+	Meta        *ServerMeta `json:"_meta,omitempty"`
 }
 
 type ServerMeta struct {
@@ -733,14 +726,7 @@ func (c *MCPXClient) ListServers(cursor string, limit int, jsonOutput bool, deta
 					fmt.Printf("Status: %s\n", server.Status)
 				}
 				fmt.Printf("Repository: %s (%s)\n", server.Repository.URL, server.Repository.Source)
-				version := server.Version
-				if version == "" && server.VersionDetail.Version != "" {
-					version = server.VersionDetail.Version
-				}
-				fmt.Printf("Version: %s\n", version)
-				if server.VersionDetail.ReleaseDate != "" {
-					fmt.Printf("Release Date: %s\n", server.VersionDetail.ReleaseDate)
-				}
+				fmt.Printf("Version: %s\n", server.Version)
 			}
 		}
 	} else {
@@ -824,14 +810,7 @@ func (c *MCPXClient) GetServer(serverName string, jsonOutput bool) error {
 				fmt.Printf("Status: %s\n", serverDetail.Status)
 			}
 			fmt.Printf("Repository: %s (%s)\n", serverDetail.Repository.URL, serverDetail.Repository.Source)
-			version := serverDetail.Version
-			if version == "" && serverDetail.VersionDetail.Version != "" {
-				version = serverDetail.VersionDetail.Version
-			}
-			fmt.Printf("Version: %s\n", version)
-			if serverDetail.VersionDetail.ReleaseDate != "" {
-				fmt.Printf("Release Date: %s\n", serverDetail.VersionDetail.ReleaseDate)
-			}
+			fmt.Printf("Version: %s\n", serverDetail.Version)
 			if len(serverDetail.Packages) > 0 {
 				fmt.Printf("\nPackages:\n")
 				for i, pkg := range serverDetail.Packages {
@@ -1105,10 +1084,7 @@ func createInteractiveServer() (*ServerDetail, error) {
 	version := promptUser("Version", server.Version)
 	if version != "" {
 		server.Version = version
-		server.VersionDetail.Version = version // Keep both for compatibility
 	}
-
-	server.VersionDetail.ReleaseDate = time.Now().Format(time.RFC3339)
 
 	if len(server.Packages) > 0 {
 		fmt.Println("\n--- Package Information ---")
@@ -1241,11 +1217,7 @@ func (c *MCPXClient) PublishServerInteractive(token string) error {
 	fmt.Println("\n=== Server Configuration Preview ===")
 	fmt.Printf("Name: %s\n", server.Name)
 	fmt.Printf("Description: %s\n", server.Description)
-	version := server.Version
-	if version == "" && server.VersionDetail.Version != "" {
-		version = server.VersionDetail.Version
-	}
-	fmt.Printf("Version: %s\n", version)
+	fmt.Printf("Version: %s\n", server.Version)
 	fmt.Printf("Repository: %s\n", server.Repository.URL)
 
 	publish := promptChoice("Proceed with publishing?", []string{"yes", "no"}, "no")
